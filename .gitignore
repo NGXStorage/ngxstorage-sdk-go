@@ -1,0 +1,6 @@
+# Binaries and build artifacts
+*.exe
+*.test
+*.out
+/bin/
+/dist/
