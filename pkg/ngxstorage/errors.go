@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"errors"
@@ -42,9 +42,9 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	if e.Code != 0 {
-		return fmt.Sprintf("ngx api error: method=%s endpoint=%s http_status=%d code=%d message=%q", e.Method, e.Endpoint, e.StatusCode, e.Code, e.Message)
+		return fmt.Sprintf("ngxstorage api error: method=%s endpoint=%s http_status=%d code=%d message=%q", e.Method, e.Endpoint, e.StatusCode, e.Code, e.Message)
 	}
-	return fmt.Sprintf("ngx api error: method=%s endpoint=%s http_status=%d message=%q", e.Method, e.Endpoint, e.StatusCode, e.Message)
+	return fmt.Sprintf("ngxstorage api error: method=%s endpoint=%s http_status=%d message=%q", e.Method, e.Endpoint, e.StatusCode, e.Message)
 }
 
 // TransportError describes a network-level failure reaching the backend.
@@ -55,7 +55,7 @@ type TransportError struct {
 }
 
 func (e *TransportError) Error() string {
-	return fmt.Sprintf("ngx transport error: method=%s endpoint=%s: %v", e.Method, e.Endpoint, e.Err)
+	return fmt.Sprintf("ngxstorage transport error: method=%s endpoint=%s: %v", e.Method, e.Endpoint, e.Err)
 }
 
 func (e *TransportError) Unwrap() error { return e.Err }

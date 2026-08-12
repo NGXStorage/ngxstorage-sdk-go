@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -17,11 +17,11 @@ func (c *Client) PortalGroups() *PortalGroupService { return &PortalGroupService
 func (s *PortalGroupService) List(ctx context.Context) ([]PortalGroup, error) {
 	body, err := s.c.get(ctx, "GetPortalGroupList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list portal groups: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list portal groups: %w", err)
 	}
 	var groups []PortalGroup
 	if err := json.Unmarshal(body, &groups); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode portal group list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode portal group list: %w", err)
 	}
 	return groups, nil
 }
@@ -31,11 +31,11 @@ func (s *PortalGroupService) Get(ctx context.Context, id string) (*PortalGroup, 
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetPortalGroup", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get portal group: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get portal group: %w", err)
 	}
 	var group PortalGroup
 	if err := json.Unmarshal(body, &group); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode portal group: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode portal group: %w", err)
 	}
 	return &group, nil
 }
@@ -45,7 +45,7 @@ func (s *PortalGroupService) Create(ctx context.Context, name, owner string) err
 	body := map[string]interface{}{"name": name, "owner": owner}
 	_, err := s.c.mutation(ctx, "CreatePortalGroup", nil, body)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: create portal group: %w", err)
+		return fmt.Errorf("ngxstorage: create portal group: %w", err)
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func (s *PortalGroupService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete portal group: %w", err)
+		return fmt.Errorf("ngxstorage: delete portal group: %w", err)
 	}
 	return nil
 }

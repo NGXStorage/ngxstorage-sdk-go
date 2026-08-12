@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -17,11 +17,11 @@ func (c *Client) Initiators() *InitiatorService { return &InitiatorService{c} }
 func (s *InitiatorService) List(ctx context.Context) ([]Initiator, error) {
 	body, err := s.c.get(ctx, "GetInitiators", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list initiators: %w", err)
 	}
 	var inits []Initiator
 	if err := json.Unmarshal(body, &inits); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode initiators: %w", err)
 	}
 	return inits, nil
 }
@@ -31,11 +31,11 @@ func (s *InitiatorService) GetFC(ctx context.Context, id string) ([]Initiator, e
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetFCInitiators", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get FC initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get FC initiators: %w", err)
 	}
 	var inits []Initiator
 	if err := json.Unmarshal(body, &inits); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode FC initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode FC initiators: %w", err)
 	}
 	return inits, nil
 }
@@ -45,11 +45,11 @@ func (s *InitiatorService) GetISCSI(ctx context.Context, id string) ([]Initiator
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetISCSIInitiators", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get iSCSI initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get iSCSI initiators: %w", err)
 	}
 	var inits []Initiator
 	if err := json.Unmarshal(body, &inits); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode iSCSI initiators: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode iSCSI initiators: %w", err)
 	}
 	return inits, nil
 }

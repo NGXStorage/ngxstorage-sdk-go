@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -16,11 +16,11 @@ func (c *Client) Services() *ServiceService { return &ServiceService{c} }
 func (s *ServiceService) NFSStatus(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetNFSService", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get NFS status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get NFS status: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode NFS status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode NFS status: %w", err)
 	}
 	return m, nil
 }
@@ -29,7 +29,7 @@ func (s *ServiceService) NFSStatus(ctx context.Context) (map[string]interface{},
 func (s *ServiceService) NFSStart(ctx context.Context) error {
 	_, err := s.c.mutation(ctx, "StartNFSService", nil, nil)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: start NFS: %w", err)
+		return fmt.Errorf("ngxstorage: start NFS: %w", err)
 	}
 	return nil
 }
@@ -38,7 +38,7 @@ func (s *ServiceService) NFSStart(ctx context.Context) error {
 func (s *ServiceService) NFSStop(ctx context.Context) error {
 	_, err := s.c.mutation(ctx, "StopNFSService", nil, nil)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: stop NFS: %w", err)
+		return fmt.Errorf("ngxstorage: stop NFS: %w", err)
 	}
 	return nil
 }
@@ -47,7 +47,7 @@ func (s *ServiceService) NFSStop(ctx context.Context) error {
 func (s *ServiceService) NFSRestart(ctx context.Context) error {
 	_, err := s.c.mutation(ctx, "RestartNFSService", nil, nil)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: restart NFS: %w", err)
+		return fmt.Errorf("ngxstorage: restart NFS: %w", err)
 	}
 	return nil
 }
@@ -56,11 +56,11 @@ func (s *ServiceService) NFSRestart(ctx context.Context) error {
 func (s *ServiceService) NFSSettings(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetNFSSettings", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get NFS settings: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get NFS settings: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode NFS settings: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode NFS settings: %w", err)
 	}
 	return m, nil
 }

@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -46,11 +46,11 @@ func (s *HardwareService) Enclosures(ctx context.Context) ([]map[string]interfac
 func (s *HardwareService) list(ctx context.Context, name string) ([]map[string]interface{}, error) {
 	body, err := s.c.get(ctx, name, nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: %s: %w", name, err)
+		return nil, fmt.Errorf("ngxstorage: %s: %w", name, err)
 	}
 	var m []map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode %s: %w", name, err)
+		return nil, fmt.Errorf("ngxstorage: decode %s: %w", name, err)
 	}
 	return m, nil
 }

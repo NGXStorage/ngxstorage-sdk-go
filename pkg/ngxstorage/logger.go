@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 // Logger is the pluggable logging interface used by the SDK. It defaults to a
 // no-op logger; drivers inject their own (zap, slog, logrus, ...) via

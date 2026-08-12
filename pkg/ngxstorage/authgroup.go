@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -18,13 +18,13 @@ func (s *AuthGroupService) Create(ctx context.Context, name, owner string) (stri
 	body := map[string]interface{}{"name": name, "owner": owner}
 	resp, err := s.c.mutation(ctx, "CreateAuthGroup", nil, body)
 	if err != nil {
-		return "", fmt.Errorf("ngx sdk: create auth group: %w", err)
+		return "", fmt.Errorf("ngxstorage: create auth group: %w", err)
 	}
 	var parsed struct {
 		ID string `json:"id"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
-		return "", fmt.Errorf("ngx sdk: decode create auth group: %w", err)
+		return "", fmt.Errorf("ngxstorage: decode create auth group: %w", err)
 	}
 	return parsed.ID, nil
 }
@@ -34,11 +34,11 @@ func (s *AuthGroupService) Get(ctx context.Context, id string) (*AuthGroup, erro
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetAuthGroup", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get auth group: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get auth group: %w", err)
 	}
 	var group AuthGroup
 	if err := json.Unmarshal(body, &group); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode auth group: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode auth group: %w", err)
 	}
 	return &group, nil
 }
@@ -47,11 +47,11 @@ func (s *AuthGroupService) Get(ctx context.Context, id string) (*AuthGroup, erro
 func (s *AuthGroupService) List(ctx context.Context) ([]AuthGroup, error) {
 	body, err := s.c.get(ctx, "GetAuthGroupList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list auth groups: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list auth groups: %w", err)
 	}
 	var groups []AuthGroup
 	if err := json.Unmarshal(body, &groups); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode auth group list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode auth group list: %w", err)
 	}
 	return groups, nil
 }
@@ -64,7 +64,7 @@ func (s *AuthGroupService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete auth group: %w", err)
+		return fmt.Errorf("ngxstorage: delete auth group: %w", err)
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (s *AuthGroupService) AddCHAP(ctx context.Context, id, username, password s
 	body := map[string]interface{}{"username": username, "password": password}
 	_, err := s.c.mutation(ctx, "AddCHAP", vars, body)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: add CHAP: %w", err)
+		return fmt.Errorf("ngxstorage: add CHAP: %w", err)
 	}
 	return nil
 }
@@ -89,7 +89,7 @@ func (s *AuthGroupService) DeleteCHAP(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete CHAP: %w", err)
+		return fmt.Errorf("ngxstorage: delete CHAP: %w", err)
 	}
 	return nil
 }

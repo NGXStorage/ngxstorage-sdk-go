@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -24,16 +24,16 @@ func (s *LUNService) Create(ctx context.Context, name string, sizeGB int64, owne
 	}
 	resp, err := s.c.mutation(ctx, "CreateLUN", nil, body)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: create LUN: %w", err)
+		return nil, fmt.Errorf("ngxstorage: create LUN: %w", err)
 	}
 	var parsed struct {
 		Luns []LUN `json:"luns"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode create LUN: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode create LUN: %w", err)
 	}
 	if len(parsed.Luns) == 0 {
-		return nil, fmt.Errorf("ngx sdk: create LUN returned no LUN")
+		return nil, fmt.Errorf("ngxstorage: create LUN returned no LUN")
 	}
 	return &parsed.Luns[0], nil
 }
@@ -43,11 +43,11 @@ func (s *LUNService) Get(ctx context.Context, id string) (*LUN, error) {
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetLUN", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get LUN: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get LUN: %w", err)
 	}
 	var lun LUN
 	if err := json.Unmarshal(body, &lun); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode LUN: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode LUN: %w", err)
 	}
 	return &lun, nil
 }
@@ -56,11 +56,11 @@ func (s *LUNService) Get(ctx context.Context, id string) (*LUN, error) {
 func (s *LUNService) List(ctx context.Context) ([]LUN, error) {
 	body, err := s.c.get(ctx, "GetLUNDetailList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list LUNs: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list LUNs: %w", err)
 	}
 	var luns []LUN
 	if err := json.Unmarshal(body, &luns); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode LUN list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode LUN list: %w", err)
 	}
 	return luns, nil
 }
@@ -73,7 +73,7 @@ func (s *LUNService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete LUN: %w", err)
+		return fmt.Errorf("ngxstorage: delete LUN: %w", err)
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func (s *LUNService) Modify(ctx context.Context, id string, fields map[string]in
 	vars := url.Values{"id": {id}}
 	_, err := s.c.mutation(ctx, "ModifyLUN", vars, fields)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: modify LUN: %w", err)
+		return fmt.Errorf("ngxstorage: modify LUN: %w", err)
 	}
 	return nil
 }

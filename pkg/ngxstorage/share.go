@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -23,16 +23,16 @@ func (s *ShareService) Create(ctx context.Context, name string, sizeBytes int64,
 	}
 	resp, err := s.c.mutation(ctx, "CreateShare", nil, body)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: create share: %w", err)
+		return nil, fmt.Errorf("ngxstorage: create share: %w", err)
 	}
 	var parsed struct {
 		Shares []Share `json:"shares"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode create share: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode create share: %w", err)
 	}
 	if len(parsed.Shares) == 0 {
-		return nil, fmt.Errorf("ngx sdk: create share returned no share")
+		return nil, fmt.Errorf("ngxstorage: create share returned no share")
 	}
 	return &parsed.Shares[0], nil
 }
@@ -42,11 +42,11 @@ func (s *ShareService) Get(ctx context.Context, id string) (*Share, error) {
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetShare", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get share: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get share: %w", err)
 	}
 	var share Share
 	if err := json.Unmarshal(body, &share); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode share: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode share: %w", err)
 	}
 	return &share, nil
 }
@@ -55,11 +55,11 @@ func (s *ShareService) Get(ctx context.Context, id string) (*Share, error) {
 func (s *ShareService) List(ctx context.Context) ([]Share, error) {
 	body, err := s.c.get(ctx, "GetShareDetailList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list shares: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list shares: %w", err)
 	}
 	var shares []Share
 	if err := json.Unmarshal(body, &shares); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode share list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode share list: %w", err)
 	}
 	return shares, nil
 }
@@ -72,7 +72,7 @@ func (s *ShareService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete share: %w", err)
+		return fmt.Errorf("ngxstorage: delete share: %w", err)
 	}
 	return nil
 }
@@ -82,7 +82,7 @@ func (s *ShareService) Modify(ctx context.Context, id string, fields map[string]
 	vars := url.Values{"id": {id}}
 	_, err := s.c.mutation(ctx, "ModifyShare", vars, fields)
 	if err != nil {
-		return fmt.Errorf("ngx sdk: modify share: %w", err)
+		return fmt.Errorf("ngxstorage: modify share: %w", err)
 	}
 	return nil
 }

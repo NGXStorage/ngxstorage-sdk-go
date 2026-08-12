@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -17,11 +17,11 @@ func (c *Client) Pools() *PoolService { return &PoolService{c} }
 func (s *PoolService) List(ctx context.Context) ([]Pool, error) {
 	body, err := s.c.get(ctx, "GetPoolList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list pools: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list pools: %w", err)
 	}
 	var pools []Pool
 	if err := json.Unmarshal(body, &pools); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode pool list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode pool list: %w", err)
 	}
 	return pools, nil
 }
@@ -31,11 +31,11 @@ func (s *PoolService) Get(ctx context.Context, id string) (*Pool, error) {
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetPool", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get pool: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get pool: %w", err)
 	}
 	var pool Pool
 	if err := json.Unmarshal(body, &pool); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode pool: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode pool: %w", err)
 	}
 	return &pool, nil
 }
@@ -44,11 +44,11 @@ func (s *PoolService) Get(ctx context.Context, id string) (*Pool, error) {
 func (s *PoolService) Overview(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetPoolOverview", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get pool overview: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get pool overview: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode pool overview: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode pool overview: %w", err)
 	}
 	return m, nil
 }
@@ -58,11 +58,11 @@ func (s *PoolService) Overview(ctx context.Context) (map[string]interface{}, err
 func (s *PoolService) GetConfiguredCapacity(ctx context.Context) (avail, reserved int64, err error) {
 	body, err := s.c.get(ctx, "GetCapacityStatus", nil)
 	if err != nil {
-		return 0, 0, fmt.Errorf("ngx sdk: get capacity: %w", err)
+		return 0, 0, fmt.Errorf("ngxstorage: get capacity: %w", err)
 	}
 	var raw []map[string]interface{}
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return 0, 0, fmt.Errorf("ngx sdk: decode capacity: %w", err)
+		return 0, 0, fmt.Errorf("ngxstorage: decode capacity: %w", err)
 	}
 	for _, p := range raw {
 		name, _ := p["name"].(string)
@@ -77,7 +77,7 @@ func (s *PoolService) GetConfiguredCapacity(ctx context.Context) (avail, reserve
 		reserved = bytesFromValue(logical["reserved"])
 		return avail, reserved, nil
 	}
-	return 0, 0, fmt.Errorf("ngx sdk: configured pool %q capacity not found", s.c.poolName)
+	return 0, 0, fmt.Errorf("ngxstorage: configured pool %q capacity not found", s.c.poolName)
 }
 
 // bytesFromValue converts a flexible JSON numeric/string byte value to int64.

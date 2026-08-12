@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -18,11 +18,11 @@ func (c *Client) Users() *UserService { return &UserService{c} }
 func (s *UserService) List(ctx context.Context) ([]map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetUserList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list users: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list users: %w", err)
 	}
 	var m []map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode user list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode user list: %w", err)
 	}
 	return m, nil
 }
@@ -32,11 +32,11 @@ func (s *UserService) Get(ctx context.Context, id string) (map[string]interface{
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetUser", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get user: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get user: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode user: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode user: %w", err)
 	}
 	return m, nil
 }

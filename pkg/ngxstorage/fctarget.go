@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -17,11 +17,11 @@ func (c *Client) FCTargets() *FCTargetService { return &FCTargetService{c} }
 func (s *FCTargetService) List(ctx context.Context) ([]FCTarget, error) {
 	body, err := s.c.get(ctx, "GetFCTargetList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list FC targets: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list FC targets: %w", err)
 	}
 	var targets []FCTarget
 	if err := json.Unmarshal(body, &targets); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode FC target list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode FC target list: %w", err)
 	}
 	return targets, nil
 }
@@ -33,11 +33,11 @@ func (s *FCTargetService) Get(ctx context.Context, id string) (*FCTarget, error)
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetFCTarget", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get FC target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get FC target: %w", err)
 	}
 	var target FCTarget
 	if err := json.Unmarshal(body, &target); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode FC target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode FC target: %w", err)
 	}
 	return &target, nil
 }
@@ -51,7 +51,7 @@ func (s *FCTargetService) AddLUN(ctx context.Context, targetID, lunID, owner str
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: add LUN to FC target: %w", err)
+		return fmt.Errorf("ngxstorage: add LUN to FC target: %w", err)
 	}
 	return nil
 }
@@ -65,7 +65,7 @@ func (s *FCTargetService) RemoveLUN(ctx context.Context, targetID, lunID, owner 
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: remove LUN from FC target: %w", err)
+		return fmt.Errorf("ngxstorage: remove LUN from FC target: %w", err)
 	}
 	return nil
 }

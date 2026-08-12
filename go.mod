@@ -1,3 +1,3 @@
-module github.com/ngxstorage/ngx-sdk-go
+module github.com/ngxstorage/ngxstorage-sdk-go
 
 go 1.25.0

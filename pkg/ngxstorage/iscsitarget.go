@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -17,11 +17,11 @@ func (c *Client) ISCSITargets() *ISCSITargetService { return &ISCSITargetService
 func (s *ISCSITargetService) List(ctx context.Context) ([]ISCSITarget, error) {
 	body, err := s.c.get(ctx, "GetISCSITargetList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: list iSCSI targets: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list iSCSI targets: %w", err)
 	}
 	var targets []ISCSITarget
 	if err := json.Unmarshal(body, &targets); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode iSCSI target list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode iSCSI target list: %w", err)
 	}
 	return targets, nil
 }
@@ -31,11 +31,11 @@ func (s *ISCSITargetService) Get(ctx context.Context, id string) (*ISCSITarget, 
 	vars := url.Values{"id": {id}}
 	body, err := s.c.get(ctx, "GetISCSITarget", vars)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get iSCSI target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get iSCSI target: %w", err)
 	}
 	var target ISCSITarget
 	if err := json.Unmarshal(body, &target); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode iSCSI target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode iSCSI target: %w", err)
 	}
 	return &target, nil
 }
@@ -45,11 +45,11 @@ func (s *ISCSITargetService) Create(ctx context.Context, name, owner string) (*I
 	body := map[string]interface{}{"name": name, "owner": owner}
 	resp, err := s.c.mutation(ctx, "CreateISCSITarget", nil, body)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: create iSCSI target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: create iSCSI target: %w", err)
 	}
 	var target ISCSITarget
 	if err := json.Unmarshal(resp, &target); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode create iSCSI target: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode create iSCSI target: %w", err)
 	}
 	return &target, nil
 }
@@ -62,7 +62,7 @@ func (s *ISCSITargetService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: delete iSCSI target: %w", err)
+		return fmt.Errorf("ngxstorage: delete iSCSI target: %w", err)
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (s *ISCSITargetService) AddLUN(ctx context.Context, targetID, lunID, owner 
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: add LUN to iSCSI target: %w", err)
+		return fmt.Errorf("ngxstorage: add LUN to iSCSI target: %w", err)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (s *ISCSITargetService) RemoveLUN(ctx context.Context, targetID, lunID, own
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("ngx sdk: remove LUN from iSCSI target: %w", err)
+		return fmt.Errorf("ngxstorage: remove LUN from iSCSI target: %w", err)
 	}
 	return nil
 }

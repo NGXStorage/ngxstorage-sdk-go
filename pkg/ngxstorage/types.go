@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 // This file declares the canonical backend types returned by the NGX Storage
 // Manager API v2. Field names mirror the live backend JSON keys (verified

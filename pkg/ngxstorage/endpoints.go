@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"net/http"

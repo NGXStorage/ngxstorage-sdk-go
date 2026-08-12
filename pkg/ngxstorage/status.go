@@ -1,4 +1,4 @@
-package ngxsdk
+package ngxstorage
 
 import (
 	"context"
@@ -16,11 +16,11 @@ func (c *Client) Status() *StatusService { return &StatusService{c} }
 func (s *StatusService) Cluster(ctx context.Context) (*ClusterStatus, error) {
 	body, err := s.c.get(ctx, "GetClusterStatus", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get cluster status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get cluster status: %w", err)
 	}
 	var cluster ClusterStatus
 	if err := json.Unmarshal(body, &cluster); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode cluster status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode cluster status: %w", err)
 	}
 	return &cluster, nil
 }
@@ -29,11 +29,11 @@ func (s *StatusService) Cluster(ctx context.Context) (*ClusterStatus, error) {
 func (s *StatusService) Services(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetServicesStatus", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get services status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get services status: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode services status: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode services status: %w", err)
 	}
 	return m, nil
 }
@@ -42,11 +42,11 @@ func (s *StatusService) Services(ctx context.Context) (map[string]interface{}, e
 func (s *StatusService) Capacity(ctx context.Context) ([]map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetCapacityStatus", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get capacity: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get capacity: %w", err)
 	}
 	var m []map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode capacity: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode capacity: %w", err)
 	}
 	return m, nil
 }
@@ -55,11 +55,11 @@ func (s *StatusService) Capacity(ctx context.Context) ([]map[string]interface{},
 func (s *StatusService) IOPS(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetIOPSStatus", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get iops: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get iops: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode iops: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode iops: %w", err)
 	}
 	return m, nil
 }
@@ -68,11 +68,11 @@ func (s *StatusService) IOPS(ctx context.Context) (map[string]interface{}, error
 func (s *StatusService) Bandwidth(ctx context.Context) (map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetBandwidth", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngx sdk: get bandwidth: %w", err)
+		return nil, fmt.Errorf("ngxstorage: get bandwidth: %w", err)
 	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, fmt.Errorf("ngx sdk: decode bandwidth: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode bandwidth: %w", err)
 	}
 	return m, nil
 }
