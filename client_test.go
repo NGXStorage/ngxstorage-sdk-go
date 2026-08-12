@@ -154,36 +154,28 @@ func TestAPIClassify(t *testing.T) {
 	}
 }
 
-func TestTrimNAA(t *testing.T) {
-	if got := trimNAA("naa.20020090faeae1a5"); got != "20020090faeae1a5" {
-		t.Fatalf("trimNAA = %q, want without naa. prefix", got)
-	}
-	if got := trimNAA("2002"); got != "2002" {
-		t.Fatalf("trimNAA no-prefix = %q, want unchanged", got)
-	}
-}
-
-func TestFCTargetWWPNs(t *testing.T) {
+func TestFCTargetGetRaw(t *testing.T) {
 	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{
 			"id":"t1","name":"tgt-a","owner":"o1",
 			"ports":[
-				{"id":"p1","name":"fc0/1","wwpns":[{"wwpn":"naa.2002a","owner":"o","target_id":"t1"},{"wwpn":"naa.2002b","owner":"o","target_id":"t1"}],"initiators":[]},
-				{"id":"p2","name":"fc1/1","wwpns":[{"wwpn":"naa.2002a","owner":"o","target_id":"t1"}],"initiators":[]}
+				{"id":"p1","name":"fc0/1","wwpns":[{"wwpn":"naa.2002a","owner":"o","target_id":"t1"}],"initiators":[]}
 			],
-			"luns":[]
+			"luns":[{"id":"lun-1","name":"v","number":"6","pool_name":"pool1","scsi_id":"3600"}]
 		}`))
 	})
 
-	wwpns, err := c.FCTargets().GetWWPNs(context.Background(), "t1")
+	target, err := c.FCTargets().Get(context.Background(), "t1")
 	if err != nil {
-		t.Fatalf("GetWWPNs: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
-	if len(wwpns) != 2 {
-		t.Fatalf("wwpns = %v, want 2 dedup entries", wwpns)
+	// SDK returns raw backend values: WWPN keeps the naa. prefix, LUN number
+	// stays a string. Interpretation belongs to the driver.
+	if len(target.Ports) != 1 || target.Ports[0].Wwpns[0].WWPN != "naa.2002a" {
+		t.Fatalf("raw WWPN not preserved: %+v", target.Ports)
 	}
-	if wwpns[0] != "2002a" || wwpns[1] != "2002b" {
-		t.Fatalf("wwpns = %v, want [2002a 2002b]", wwpns)
+	if target.Luns[0].Number != "6" {
+		t.Fatalf("raw LUN number = %q, want string \"6\"", target.Luns[0].Number)
 	}
 }
 

@@ -3,7 +3,6 @@ package ngxsdk
 import (
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 const (
@@ -183,9 +182,4 @@ func endpointPathVars(name string) url.Values {
 		dst[k] = append([]string(nil), v...)
 	}
 	return dst
-}
-
-// trimNAA strips the "naa." prefix the backend prepends to FC WWPNs.
-func trimNAA(wwpn string) string {
-	return strings.TrimPrefix(wwpn, "naa.")
 }
