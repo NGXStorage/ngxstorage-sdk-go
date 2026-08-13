@@ -76,12 +76,13 @@ var endpoints = map[string]endpoint{
 	"RemoveLunFromISCSITarget": {Group: iscsiGroup, Method: http.MethodPatch, Segments: []string{"lun", "{id}"}, PathVars: url.Values{"id": {}}},
 
 	// Snapshot
-	"CreateSnapshot":  {Group: snapshotGroup, Method: http.MethodPost},
-	"GetSnapshot":     {Group: snapshotGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"DeleteSnapshot":  {Group: snapshotGroup, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"GetSnapshotList": {Group: snapshotGroup, Method: http.MethodGet},
-	"CloneSnapshot":   {Group: snapshotGroup, Method: http.MethodPost, Segments: []string{"clone", "{id}"}, PathVars: url.Values{"id": {}}},
-	"RestoreSnapshot": {Group: snapshotGroup, Method: http.MethodPost, Segments: []string{"restore", "{id}"}, PathVars: url.Values{"id": {}}},
+	"CreateSnapshot":       {Group: snapshotGroup, Method: http.MethodPost},
+	"GetSnapshot":          {Group: snapshotGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"DeleteSnapshot":       {Group: snapshotGroup, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"GetSnapshotList":      {Group: snapshotGroup, Method: http.MethodGet},
+	"GetSnapshotDetailList": {Group: snapshotGroup, Method: http.MethodGet, Segments: []string{"list"}},
+	"CloneSnapshot":        {Group: snapshotGroup, Method: http.MethodPost, Segments: []string{"clone", "{id}"}, PathVars: url.Values{"id": {}}},
+	"RestoreSnapshot":      {Group: snapshotGroup, Method: http.MethodPost, Segments: []string{"restore", "{id}"}, PathVars: url.Values{"id": {}}},
 
 	// Pool
 	"GetPoolList":       {Group: poolGroup, Method: http.MethodGet},
@@ -147,16 +148,24 @@ var endpoints = map[string]endpoint{
 }
 
 // endpointURL builds an absolute URL for one canonical endpoint name against
-// the given controller IP.
+// the given controller IP. Path variables declared by the endpoint are
+// substituted from pathVars; any remaining pathVars keys become query
+// parameters (e.g. the snapshot ?volume_id= filter).
 func endpointURL(name, ip string, pathVars url.Values) string {
 	ep, ok := endpoints[name]
 	if !ok {
 		return ""
 	}
 	link, _ := url.JoinPath("https://"+ip, apiVersion, ep.Group)
+
+	// Track which keys the endpoint consumes as path segments so they are not
+	// also emitted as query parameters.
+	pathKeys := map[string]bool{}
 	for _, seg := range ep.Segments {
 		if len(seg) > 0 && seg[0] == '{' && seg[len(seg)-1] == '}' {
-			if vals := pathVars[seg[1:len(seg)-1]]; len(vals) > 0 {
+			key := seg[1 : len(seg)-1]
+			pathKeys[key] = true
+			if vals := pathVars[key]; len(vals) > 0 {
 				seg = vals[0]
 			}
 		}
@@ -164,6 +173,21 @@ func endpointURL(name, ip string, pathVars url.Values) string {
 	}
 	if ep.TrailingSlash {
 		link += "/"
+	}
+
+	// Emit leftover pathVars keys as query parameters so callers can pass
+	// filters (volume_id) without a second URL-building mechanism.
+	query := url.Values{}
+	for k, vs := range pathVars {
+		if k == "" || pathKeys[k] {
+			continue
+		}
+		for _, v := range vs {
+			query.Add(k, v)
+		}
+	}
+	if encoded := query.Encode(); encoded != "" {
+		link += "?" + encoded
 	}
 	return link
 }

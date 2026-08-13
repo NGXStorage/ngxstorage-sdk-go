@@ -101,6 +101,11 @@ func (c *Client) CurrentController() string {
 	return c.controllers[c.nodeIndex]
 }
 
+// PoolName returns the configured canonical pool name.
+func (c *Client) PoolName() string {
+	return c.poolName
+}
+
 // requestController performs one request against the currently selected
 // controller. It is separated so transport failover can re-run the request
 // after a refresh.

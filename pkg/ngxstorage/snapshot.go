@@ -54,6 +54,27 @@ func (s *SnapshotService) List(ctx context.Context) ([]Snapshot, error) {
 	return snaps, nil
 }
 
+// ListDetail fetches detailed snapshots from /api/v2/snapshot/list, optionally
+// filtered by one source volume ID. The NFS driver reads this endpoint for
+// CSI ListSnapshots and source validation.
+func (s *SnapshotService) ListDetail(ctx context.Context, volumeID string) ([]Snapshot, error) {
+	vars := url.Values{}
+	if volumeID != "" {
+		// The backend filters snapshot/list by the canonical volume_id query
+		// parameter.
+		vars.Set("volume_id", volumeID)
+	}
+	body, err := s.c.get(ctx, "GetSnapshotDetailList", vars)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: list snapshot details: %w", err)
+	}
+	var snaps []Snapshot
+	if err := json.Unmarshal(body, &snaps); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode snapshot detail list: %w", err)
+	}
+	return snaps, nil
+}
+
 // Delete removes a snapshot. Idempotent.
 func (s *SnapshotService) Delete(ctx context.Context, id string) error {
 	vars := url.Values{"id": {id}}
