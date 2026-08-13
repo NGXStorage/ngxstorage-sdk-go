@@ -10,7 +10,7 @@ import (
 // against the Cinder FC driver api.py and the NFS CSI driver, which use the
 // live names rather than the stale APIV2.openapi.json).
 
-// LUN is a block volume on the NGX backend.
+// LUN is a block volume on the NGX Storage backend.
 type LUN struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -30,7 +30,7 @@ type LUN struct {
 	Protocols map[string]string `json:"protocols"`
 }
 
-// Share is a file (NFS) volume on the NGX backend. Field names mirror the
+// Share is a file (NFS) volume on the NGX Storage backend. Field names mirror the
 // live backend JSON per the canonical NFS contract (NFS CSI driver
 // CODE_RULES §11); the SDK does not probe alternate names.
 type Share struct {

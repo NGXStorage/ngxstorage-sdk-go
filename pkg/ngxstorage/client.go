@@ -20,7 +20,7 @@ type Config struct {
 	// query status/hardware may leave it empty).
 	PoolName string
 
-	// InsecureSkipVerify defaults to true because NGX appliances use
+	// InsecureSkipVerify defaults to true because NGX Storage Arrays use
 	// self-signed certificates and most customers have no private CA/DNS.
 	// Set false and provide RootCAs to enforce a customer trust chain.
 	InsecureSkipVerify bool

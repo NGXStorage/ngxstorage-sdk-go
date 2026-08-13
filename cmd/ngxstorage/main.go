@@ -26,7 +26,7 @@ func run(args []string) error {
 		controllers = flag.String("controllers", "", "comma-separated controller IPs (required)")
 		apiKey      = flag.String("api-key", "", "NGX API key (required)")
 		poolName    = flag.String("pool-name", "", "canonical pool name")
-		skipVerify  = flag.Bool("insecure-skip-verify", true, "skip TLS verification (self-signed NGX appliances)")
+		skipVerify  = flag.Bool("insecure-skip-verify", true, "skip TLS verification (self-signed NGX Storage Arrays)")
 	)
 	flag.CommandLine.Parse(args)
 	rest := flag.Args()

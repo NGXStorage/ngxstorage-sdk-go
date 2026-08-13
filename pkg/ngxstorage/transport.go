@@ -24,7 +24,7 @@ type RoundTripper interface {
 // newHTTPClient builds the SDK HTTP transport with TLS and middleware wiring.
 func newHTTPClient(cfg Config) *http.Client {
 	tlsCfg := &tls.Config{
-		InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // self-signed NGX appliances
+		InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // self-signed NGX Storage Arrays
 	}
 	if cfg.RootCAs != nil {
 		tlsCfg.RootCAs = cfg.RootCAs
