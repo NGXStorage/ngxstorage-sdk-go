@@ -60,7 +60,9 @@ func run(args []string) error {
 		}
 		return printJSON(cluster)
 	case "pools":
-		pools, err := client.Pools().List(ctx)
+		// The detail endpoint carries operational fields such as blocksize and
+		// capacity; the summary endpoint intentionally omits them.
+		pools, err := client.Pools().ListDetail(ctx)
 		if err != nil {
 			return err
 		}
@@ -95,7 +97,7 @@ func run(args []string) error {
 		}
 		var sizeGB int64
 		fmt.Sscanf(rest[2], "%d", &sizeGB)
-		lun, err := client.LUNs().Create(ctx, rest[1], sizeGB, "1")
+		lun, err := client.LUNs().Create(ctx, rest[1], sizeGB)
 		if err != nil {
 			return err
 		}
@@ -105,6 +107,59 @@ func run(args []string) error {
 			return fmt.Errorf("usage: delete-lun <id>")
 		}
 		return client.LUNs().Delete(ctx, rest[1])
+	case "create-share":
+		if len(rest) < 3 {
+			return fmt.Errorf("usage: create-share <name> <size-gib>")
+		}
+		var sizeGiB int64
+		fmt.Sscanf(rest[2], "%d", &sizeGiB)
+		// Idempotent: a same-name share is admin-owned and returned as-is.
+		shares, err := client.Shares().List(ctx)
+		if err != nil {
+			return err
+		}
+		for _, share := range shares {
+			if share.Name == rest[1] {
+				return printJSON(share)
+			}
+		}
+		share, err := client.Shares().Create(ctx, ngxstorage.ShareCreateRequest{
+			Name:           rest[1],
+			SoftQuotaBytes: sizeGiB << 30,
+			BlockSize:      "128k",
+			Permissions:    "rwx",
+		})
+		if err != nil {
+			return err
+		}
+		if err := client.Shares().SetExportEnabled(ctx, share.ID, true); err != nil {
+			return err
+		}
+		return printJSON(share)
+	case "set-share-readonly":
+		if len(rest) < 3 {
+			return fmt.Errorf("usage: set-share-readonly <id> <true|false>")
+		}
+		return client.Shares().SetReadOnly(ctx, rest[1], rest[2] == "true")
+	case "delete-share":
+		if len(rest) < 2 {
+			return fmt.Errorf("usage: delete-share <id>")
+		}
+		return client.Shares().Delete(ctx, rest[1])
+	case "create-snapshot":
+		if len(rest) < 3 {
+			return fmt.Errorf("usage: create-snapshot <volume-id> <name>")
+		}
+		snap, err := client.Snapshots().Create(ctx, rest[1], rest[2])
+		if err != nil {
+			return err
+		}
+		return printJSON(snap)
+	case "delete-snapshot":
+		if len(rest) < 2 {
+			return fmt.Errorf("usage: delete-snapshot <id>")
+		}
+		return client.Snapshots().Delete(ctx, rest[1])
 	default:
 		printUsage()
 		return fmt.Errorf("unknown command %q", rest[0])
@@ -130,5 +185,10 @@ commands:
   fctargets          list Fibre Channel targets
   snapshots          list snapshots
   create-lun <name> <size-gb>   create a LUN
-  delete-lun <id>               delete a LUN`)
+  delete-lun <id>               delete a LUN
+  create-share <name> <size-gib>  create a share and enable its NFS export
+  set-share-readonly <id> <true|false>
+  delete-share <id>             delete a share
+  create-snapshot <volume-id> <name>  create a snapshot
+  delete-snapshot <id>          delete a snapshot`)
 }

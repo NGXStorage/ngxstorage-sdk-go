@@ -27,7 +27,7 @@ go get github.com/ngxstorage/ngxstorage-sdk-go
 In the NGX monorepo the driver `go.mod` uses a local replace:
 
 ```
-replace github.com/ngxstorage/ngxstorage-sdk-go => ../../../../API/v2/SDK/go
+replace github.com/ngxstorage/ngxstorage-sdk-go => ../../../../API/v2/SDK/Go
 ```
 
 ## Quick start
@@ -85,7 +85,7 @@ func main() {
 | `Controllers` | 1–2 controller IPs/hostnames (required) |
 | `APIKey` | Bearer token (required, never logged) |
 | `PoolName` | Canonical pool name; empty skips pool ownership checks |
-| `InsecureSkipVerify` | Skip TLS verification (default `true` for self-signed NGX) |
+| `InsecureSkipVerify` | Skip TLS verification for self-signed NGX Storage Arrays |
 | `RootCAs` | Optional customer CA bundle (set with `InsecureSkipVerify=false`) |
 | `RoundTrippers` | Middleware chain wrapping the SDK transport, outermost-first |
 | `Logger` | Pluggable logger (`Debugf/Infof/Warnf/Errorf`); default Nop |
