@@ -222,7 +222,9 @@ type Initiator struct {
 type AuthGroup struct {
 	ID         string      `json:"id"`
 	Name       string      `json:"name"`
-	ChapStatus bool        `json:"chap_status"`
+	// ChapStatus is an integer (0/1) on current software; FlexBool also
+	// accepts the JSON booleans older releases return.
+	ChapStatus FlexBool    `json:"chap_status"`
 	Initiators []Initiator `json:"initiator"`
 }
 
