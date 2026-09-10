@@ -7,6 +7,33 @@ import (
 	"strings"
 )
 
+// UnmarshalJSON accepts both the numeric and quoted-string encodings emitted
+// by different NGX releases while preserving Number as a string for callers.
+func (l *FCTargetLUN) UnmarshalJSON(data []byte) error {
+	type lunAlias FCTargetLUN
+	decoded := struct {
+		*lunAlias
+		Number json.RawMessage `json:"number"`
+	}{lunAlias: (*lunAlias)(l)}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	if len(decoded.Number) == 0 || string(decoded.Number) == "null" {
+		l.Number = ""
+		return nil
+	}
+	if decoded.Number[0] == '"' {
+		return json.Unmarshal(decoded.Number, &l.Number)
+	}
+	var number json.Number
+	if err := json.Unmarshal(decoded.Number, &number); err != nil {
+		return fmt.Errorf("ngxstorage: decode FC LUN number: %w", err)
+	}
+	l.Number = number.String()
+	return nil
+}
+
 // FlexBool decodes the canonical NGX boolean encodings: JSON boolean,
 // "true"/"false" strings, numeric "1"/"0", and the live NFS export
 // representation "1" enabled / "" disabled. All forms are accepted.
@@ -39,6 +66,38 @@ func (f *FlexBytes) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*f = parsed
+	return nil
+}
+
+// FlexOnOff decodes an NGX on/off attribute that the backend serializes
+// inconsistently: LUN detail returns JSON booleans while list endpoints return
+// "on"/"off" strings. Both forms normalize to "on"/"off".
+type FlexOnOff string
+
+// UnmarshalJSON accepts boolean and string ("on"/"off"/"true"/"false"/"1"/"0")
+// encodings and normalizes them to "on"/"off".
+func (f *FlexOnOff) UnmarshalJSON(data []byte) error {
+	var b bool
+	if err := json.Unmarshal(data, &b); err == nil {
+		if b {
+			*f = "on"
+		} else {
+			*f = "off"
+		}
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("ngxstorage: FlexOnOff unsupported value %q", data)
+	}
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "on", "1":
+		*f = "on"
+	case "false", "off", "0", "":
+		*f = "off"
+	default:
+		*f = FlexOnOff(s)
+	}
 	return nil
 }
 

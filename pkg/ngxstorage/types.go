@@ -6,33 +6,36 @@ import (
 )
 
 // This file declares the canonical backend types returned by the NGX Storage
-// Manager API v2. Field names mirror the live backend JSON keys (verified
-// against the Cinder FC driver api.py and the NFS CSI driver, which use the
-// live names rather than the stale APIV2.openapi.json).
+// Manager API v2. Field names mirror the live backend JSON keys.
 
 // LUN is a block volume on the NGX Storage backend.
 type LUN struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Size        string `json:"size"` // bytes, as a string from the backend
-	ScsiID      string `json:"scsi_id"`
-	BlockSize   string `json:"blocksize"`
-	Provision   string `json:"provision_type"`
-	Dedup       string `json:"dedup"`
-	Compress    string `json:"compress"`
-	DramCache   string `json:"dram_cache"`
-	FlashCache  string `json:"flash_cache"`
-	IoType      string `json:"io_type"`
-	QosPriority string `json:"qos_priority"`
-	Owner       string `json:"owner"`
-	PoolName    string `json:"pool_name"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Size            FlexBytes `json:"size"` // bytes; number or string
+	Used            FlexBytes `json:"used"`
+	ScsiID          string    `json:"scsi_id"`
+	BlockSize       string    `json:"blocksize"`
+	ThinProvision   FlexOnOff `json:"thin_provision"`
+	Deduplication   FlexOnOff `json:"deduplication"`
+	Compression     FlexOnOff `json:"compression"`
+	CompressRatio   string    `json:"compress_ratio"`
+	DramCache       FlexOnOff `json:"dram_cache"`
+	FlashCache      FlexOnOff `json:"flash_cache"`
+	IoType          string    `json:"io_type"`
+	QosPriority     FlexBytes `json:"qos_priority"` // number or string
+	Clone           string    `json:"clone"`
+	SizeBySnapshots FlexBytes `json:"sizebysnapshots"`
+	Owner           string    `json:"owner"`
+	PoolName        string    `json:"pool_name"`
+	Created         FlexBytes `json:"created"` // unix timestamp; number or string
 	// Protocols maps protocol name to its target reference, e.g. {"fc": "tgtA"}.
 	Protocols map[string]string `json:"protocols"`
 }
 
-// Share is a file (NFS) volume on the NGX Storage backend. Field names mirror the
-// live backend JSON per the canonical NFS contract (NFS CSI driver
-// CODE_RULES §11); the SDK does not probe alternate names.
+// Share is a file (NFS) volume on the NGX Storage backend. Field names mirror
+// the live backend JSON per the canonical NFS contract; the SDK does not probe
+// alternate names.
 type Share struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -178,23 +181,41 @@ type FCPortInfo struct {
 
 // ISCSITarget is an iSCSI target on the backend.
 type ISCSITarget struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Owner     string `json:"owner"`
-	TargetIQN string `json:"target_iqn"`
-	Luns      []struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Owner           string `json:"owner"`
+	TargetIQN       string `json:"target_iqn"`
+	AuthGroupID     string `json:"auth_group_id"`
+	AuthGroupName   string `json:"auth_group_name"`
+	PortalGroupID   string `json:"portal_group_id"`
+	PortalGroupName string `json:"portal_group_name"`
+	Initiators      []struct {
+		ID  string `json:"id"`
+		IQN string `json:"iqn"`
+	} `json:"initiators"`
+	Luns []struct {
 		ID     string `json:"id"`
 		Name   string `json:"name"`
 		Number string `json:"number"`
 	} `json:"luns"`
 }
 
-// Initiator is an iSCSI initiator (IQN) or FC initiator (WWPN).
+// Initiator is an iSCSI initiator (IQN) or FC initiator (WWPN) currently
+// connected to the system. iSCSI entries carry the iqn, source ip, auth-group
+// alias, and the target iqn they are logged into; FC entries carry the
+// initiator WWPN and the target port.
 type Initiator struct {
-	ID    string `json:"id"`
-	IQN   string `json:"iqn,omitempty"`
-	Alias string `json:"alias,omitempty"`
-	NAA   string `json:"naa,omitempty"`
+	ID        string `json:"id,omitempty"`
+	IQN       string `json:"iqn,omitempty"`
+	Alias     string `json:"alias,omitempty"`
+	NAA       string `json:"naa,omitempty"`
+	Initiator string `json:"initiator,omitempty"`
+	Port      string `json:"port,omitempty"`
+	PortNAA   string `json:"port_naa,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	IP        string `json:"ip,omitempty"`
+	TargetIQN string `json:"target_iqn,omitempty"`
+	Type      string `json:"type,omitempty"`
 }
 
 // AuthGroup is an iSCSI auth group (CHAP credential container).
@@ -206,10 +227,32 @@ type AuthGroup struct {
 }
 
 // PortalGroup is an iSCSI portal group exposing target IPs.
+type PortalGroupListenIP struct {
+	ID            string `json:"id"`
+	InterfaceName string `json:"interface_name"`
+	IPAddress     string `json:"ip_address"`
+	Owner         string `json:"owner"`
+}
+
 type PortalGroup struct {
-	ID   string   `json:"id"`
-	Name string   `json:"name"`
-	IPs  []string `json:"ips"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Owner is present on lightweight list entries.
+	Owner string `json:"owner"`
+	// ListenIPs is present only on the detail endpoint; the lightweight list
+	// omits it.
+	ListenIPs []PortalGroupListenIP `json:"listen_ips"`
+}
+
+// IPAddresses flattens the listen_ips records to their ip_address values.
+func (p PortalGroup) IPAddresses() []string {
+	ips := make([]string, 0, len(p.ListenIPs))
+	for _, lip := range p.ListenIPs {
+		if lip.IPAddress != "" {
+			ips = append(ips, lip.IPAddress)
+		}
+	}
+	return ips
 }
 
 // Snapshot is a point-in-time copy of a LUN or share. Field names mirror the
@@ -227,6 +270,53 @@ type Snapshot struct {
 	Ready      bool   `json:"ready"`
 }
 
+// UnmarshalJSON decodes a snapshot record. NGX snapshots are synchronous
+// point-in-time copies: the backend (verified live on V6BGWYPA and SGZ1RVC2,
+// create and get) returns no `ready` field at all, and a fetched record is
+// usable immediately. Ready therefore defaults to true and is only cleared
+// by an explicit wire `ready` value (boolean or 0/1 number). Without this,
+// every snapshot would report ReadyToUse=false forever and no
+// VolumeSnapshot could ever reach readyToUse.
+func (s *Snapshot) UnmarshalJSON(data []byte) error {
+	// The wire struct carries every field except Ready so a non-boolean
+	// wire encoding can never fail the whole decode; Ready is resolved
+	// explicitly below.
+	var raw struct {
+		ID         string          `json:"id"`
+		Name       string          `json:"name"`
+		VolumeID   string          `json:"volume_id"`
+		VolumeName string          `json:"volume_name"`
+		PoolName   string          `json:"pool_name"`
+		Path       string          `json:"path"`
+		VolumeType string          `json:"volume_type"`
+		Size       string          `json:"reserved"`
+		Created    string          `json:"created"`
+		Ready      json.RawMessage `json:"ready"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	s.ID, s.Name = raw.ID, raw.Name
+	s.VolumeID, s.VolumeName = raw.VolumeID, raw.VolumeName
+	s.PoolName, s.Path = raw.PoolName, raw.Path
+	s.VolumeType, s.Size = raw.VolumeType, raw.Size
+	s.Created = raw.Created
+	s.Ready = true
+	if len(raw.Ready) != 0 && string(raw.Ready) != "null" {
+		var b bool
+		if err := json.Unmarshal(raw.Ready, &b); err == nil {
+			s.Ready = b
+		} else {
+			var n int
+			if err := json.Unmarshal(raw.Ready, &n); err != nil {
+				return fmt.Errorf("decode snapshot ready: %w", err)
+			}
+			s.Ready = n != 0
+		}
+	}
+	return nil
+}
+
 // Pool is a storage pool on the backend.
 type Pool struct {
 	ID        string `json:"id"`
@@ -234,6 +324,57 @@ type Pool struct {
 	Owner     string `json:"owner"`
 	IsFlash   bool   `json:"is_flash"`
 	BlockSize string `json:"blocksize"`
+}
+
+// UnmarshalJSON accepts the canonical pool fields. The backend encodes
+// is_flash as either a JSON boolean or a 0/1 number depending on endpoint.
+func (p *Pool) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ID        string          `json:"id"`
+		Name      string          `json:"name"`
+		Owner     string          `json:"owner"`
+		IsFlash   json.RawMessage `json:"is_flash"`
+		BlockSize string          `json:"blocksize"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	p.ID, p.Name = raw.ID, raw.Name
+	p.Owner, p.BlockSize = raw.Owner, raw.BlockSize
+	if len(raw.IsFlash) != 0 && string(raw.IsFlash) != "null" {
+		var b bool
+		if err := json.Unmarshal(raw.IsFlash, &b); err == nil {
+			p.IsFlash = b
+		} else {
+			var n int
+			if err := json.Unmarshal(raw.IsFlash, &n); err != nil {
+				return fmt.Errorf("decode pool is_flash: %w", err)
+			}
+			p.IsFlash = n != 0
+		}
+	}
+	return nil
+}
+
+// SnapshotSchedule is the snapshot schedule installed on a volume
+// (GET/POST/DELETE /api/v2/snapshot/schedule/{volume_id}).
+type SnapshotSchedule struct {
+	ID         string `json:"id"`
+	VolumeID   string `json:"volume_id"`
+	VolumeName string `json:"volume_name"`
+	Interval   string `json:"interval"`
+	Retention  string `json:"retention"`
+	Enabled    bool   `json:"enabled"`
+	NextRun    string `json:"next_run"`
+}
+
+// FCInitiatorTag is an FC initiator tag (zoning alias) that names one or more
+// initiator WWPNs (GET/POST /api/v2/target/fc/initiator/tag).
+type FCInitiatorTag struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	InitiatorIDs []string `json:"initiator_ids"`
+	InitiatorWWN []string `json:"initiator_wwn"`
 }
 
 // Peer is a cluster member in the cluster status response.

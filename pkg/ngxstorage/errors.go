@@ -6,8 +6,7 @@ import (
 )
 
 // Backend error codes returned by the NGX Storage Manager API v2. These are
-// the canonical numeric codes observed in live responses (see the Cinder FC
-// driver's api.py and the NFS CSI driver for the authoritative list).
+// the canonical numeric codes observed in live responses.
 const (
 	// CodeBusy marks the pool as busy under heavy I/O. Retried with bounded
 	// exponential backoff.
@@ -17,10 +16,18 @@ const (
 	CodeNotFound = 5011
 	// CodeAlreadyExists marks a create of a name that already exists.
 	CodeAlreadyExists = 710
+	// CodeAuthGroupExists is returned when an auth group create collides with
+	// an existing group of the same name (backend uses a distinct code from
+	// the generic already-exists).
+	CodeAuthGroupExists = 519
+	// CodeISCSITargetExists is returned when an iSCSI target create collides
+	// with an existing target of the same name (distinct from the generic
+	// already-exists code).
+	CodeISCSITargetExists = 525
 	// CodeAttachedBusy marks a resource that cannot be mutated while attached.
 	CodeAttachedBusy = 534
 	// CodeIQNNotFound / CodeIQNExists / CodeTargetDeleted are iSCSI-specific
-	// ignorable codes used by the Cinder driver.
+	// ignorable codes.
 	CodeIQNNotFound   = 521
 	CodeIQNExists     = 522
 	CodeTargetDeleted = 611
@@ -69,19 +76,24 @@ func NewTransportError(method, endpoint string, err error) error {
 var (
 	// ErrPoolNotFound means every required pool list confirmed the configured
 	// pool is absent.
-	ErrPoolNotFound = errors.New("ngx: pool not found")
+	ErrPoolNotFound = errors.New("ngxstorage: pool not found")
 	// ErrClusterNotReady means controller roles do not form a serviceable work
 	// mode, or placement is ambiguous.
-	ErrClusterNotReady = errors.New("ngx: cluster not ready")
+	ErrClusterNotReady = errors.New("ngxstorage: cluster not ready")
 )
 
 // Classify maps an APIError to a driver-friendly kind. Drivers use this to
-// translate backend errors into CSI/Cinder status codes without string
-// matching.
+// translate backend errors into CSI status codes without string matching.
 func Classify(err error) (kind string, code int, ok bool) {
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
 		return "", 0, false
+	}
+	// Some released endpoints signal absence with HTTP 404 but omit the NGX
+	// numeric error code. Treat that transport-level semantic as not_found so
+	// idempotent cleanup works consistently across endpoint variants.
+	if apiErr.StatusCode == 404 && apiErr.Code == 0 {
+		return "not_found", 0, true
 	}
 	return ClassifyCode(apiErr.Code), apiErr.Code, true
 }
@@ -93,7 +105,7 @@ func ClassifyCode(code int) string {
 		return "busy"
 	case CodeNotFound, CodeIQNNotFound, CodeTargetDeleted:
 		return "not_found"
-	case CodeAlreadyExists, CodeIQNExists:
+	case CodeAlreadyExists, CodeIQNExists, CodeAuthGroupExists, CodeISCSITargetExists:
 		return "already_exists"
 	case CodeAttachedBusy:
 		return "attached_busy"
