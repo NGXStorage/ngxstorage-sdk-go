@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"syscall"
 	"time"
 )
 
@@ -67,6 +68,35 @@ type retryConfig struct {
 	MaxRetries int
 	BaseDelay  time.Duration
 	MaxDelay   time.Duration
+	// TransportBaseDelay and TransportMaxDelay bound the retry of transient
+	// transport failures: refused connections (any method) and post-send
+	// failures such as EOF (idempotent methods only).
+	TransportBaseDelay time.Duration
+	TransportMaxDelay  time.Duration
+}
+
+const (
+	defaultTransportBaseDelay = time.Second
+	defaultTransportMaxDelay  = 5 * time.Second
+)
+
+// transportRetryable reports whether a failed request may be retried. A
+// refused connection never reached the backend, so any method is safe; a
+// post-send failure (EOF, reset) could have been processed and is only
+// replayed for idempotent methods.
+func transportRetryable(method string, err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+	return method == http.MethodGet || method == http.MethodDelete
+}
+
+func transportRetryDelay(attempt int, base, max time.Duration) time.Duration {
+	delay := time.Duration(attempt) * base
+	if delay > max {
+		delay = max
+	}
+	return delay
 }
 
 // sendRequest performs one bounded request with 725-busy retry and returns
@@ -86,6 +116,14 @@ func sendRequest(
 		if err != nil {
 			return nil, 0, fmt.Errorf("ngxstorage: marshal request body: %w", err)
 		}
+	}
+	transportBase := cfg.TransportBaseDelay
+	if transportBase <= 0 {
+		transportBase = defaultTransportBaseDelay
+	}
+	transportMax := cfg.TransportMaxDelay
+	if transportMax <= 0 {
+		transportMax = defaultTransportMaxDelay
 	}
 
 	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
@@ -107,6 +145,13 @@ func sendRequest(
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return nil, 0, ctxErr
+			}
+			if attempt < cfg.MaxRetries && transportRetryable(method, err) {
+				logger.Warnf("ngxstorage: transient transport error, attempt %d/%d: %v", attempt, cfg.MaxRetries, err)
+				if serr := sleepContext(ctx, transportRetryDelay(attempt, transportBase, transportMax)); serr != nil {
+					return nil, 0, serr
+				}
+				continue
 			}
 			return nil, 0, NewTransportError(method, urlStr, err)
 		}
