@@ -76,3 +76,68 @@ func (s *StatusService) Bandwidth(ctx context.Context) (map[string]interface{}, 
 	}
 	return m, nil
 }
+
+// Cache returns the raw cache status document.
+func (s *StatusService) Cache(ctx context.Context) (map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetCacheStatus", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get cache status: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode cache status: %w", err)
+	}
+	return m, nil
+}
+
+// CPU returns the raw CPU status document.
+func (s *StatusService) CPU(ctx context.Context) (map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetCPUStatus", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get cpu status: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode cpu status: %w", err)
+	}
+	return m, nil
+}
+
+// Enclosures returns the raw enclosure status document.
+func (s *StatusService) Enclosures(ctx context.Context) ([]map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetEnclosuresStatus", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get enclosures status: %w", err)
+	}
+	var m []map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode enclosures status: %w", err)
+	}
+	return m, nil
+}
+
+// License returns the raw license status document.
+func (s *StatusService) License(ctx context.Context) (map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetLicenseStatus", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get license status: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode license status: %w", err)
+	}
+	return m, nil
+}
+
+// OverloadedVolumes returns the raw overloaded-volumes status document.
+func (s *StatusService) OverloadedVolumes(ctx context.Context) ([]map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetOverloadedVolumes", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get overloaded volumes: %w", err)
+	}
+	var m []map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode overloaded volumes: %w", err)
+	}
+	return m, nil
+}

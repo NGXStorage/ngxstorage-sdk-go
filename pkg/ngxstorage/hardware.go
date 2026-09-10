@@ -6,8 +6,7 @@ import (
 	"fmt"
 )
 
-// HardwareService queries physical hardware health (used by the Quartet
-// operator for monitoring).
+// HardwareService queries physical hardware health.
 type HardwareService struct{ c *Client }
 
 // Hardware returns the hardware service.
@@ -21,6 +20,19 @@ func (s *HardwareService) Disks(ctx context.Context) ([]map[string]interface{}, 
 // Memory returns the memory list document.
 func (s *HardwareService) Memory(ctx context.Context) ([]map[string]interface{}, error) {
 	return s.list(ctx, "GetHardwareMemory")
+}
+
+// MemoryTotal returns the memory total document (aggregate memory usage).
+func (s *HardwareService) MemoryTotal(ctx context.Context) (map[string]interface{}, error) {
+	body, err := s.c.get(ctx, "GetHardwareMemoryTotal", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get hardware memory total: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode hardware memory total: %w", err)
+	}
+	return m, nil
 }
 
 // CPU returns the CPU list document.

@@ -13,15 +13,33 @@ type FCTargetService struct{ c *Client }
 // FCTargets returns the FC target service.
 func (c *Client) FCTargets() *FCTargetService { return &FCTargetService{c} }
 
-// List fetches all FC targets (lightweight list).
+// List fetches the lightweight FC target identity list.
 func (s *FCTargetService) List(ctx context.Context) ([]FCTarget, error) {
+	return s.ListNames(ctx)
+}
+
+// ListNames fetches the lightweight FC target identity list.
+func (s *FCTargetService) ListNames(ctx context.Context) ([]FCTarget, error) {
 	body, err := s.c.get(ctx, "GetFCTargetList", nil)
 	if err != nil {
-		return nil, fmt.Errorf("ngxstorage: list FC targets: %w", err)
+		return nil, fmt.Errorf("ngxstorage: list FC target names: %w", err)
 	}
 	var targets []FCTarget
 	if err := json.Unmarshal(body, &targets); err != nil {
-		return nil, fmt.Errorf("ngxstorage: decode FC target list: %w", err)
+		return nil, fmt.Errorf("ngxstorage: decode FC target name list: %w", err)
+	}
+	return targets, nil
+}
+
+// ListDetail fetches all FC targets including ports and LUN mappings.
+func (s *FCTargetService) ListDetail(ctx context.Context) ([]FCTarget, error) {
+	body, err := s.c.get(ctx, "GetFCTargetDetailList", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: list FC target details: %w", err)
+	}
+	var targets []FCTarget
+	if err := json.Unmarshal(body, &targets); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode FC target detail list: %w", err)
 	}
 	return targets, nil
 }
@@ -66,6 +84,61 @@ func (s *FCTargetService) RemoveLUN(ctx context.Context, targetID, lunID, owner 
 	}
 	if err != nil {
 		return fmt.Errorf("ngxstorage: remove LUN from FC target: %w", err)
+	}
+	return nil
+}
+
+// ListInitiatorTags fetches all FC initiator tags (zoning aliases).
+func (s *FCTargetService) ListInitiatorTags(ctx context.Context) ([]FCInitiatorTag, error) {
+	body, err := s.c.get(ctx, "GetFCInitiatorTagList", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: list FC initiator tags: %w", err)
+	}
+	var tags []FCInitiatorTag
+	if err := json.Unmarshal(body, &tags); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode FC initiator tag list: %w", err)
+	}
+	return tags, nil
+}
+
+// CreateInitiatorTag provisions an FC initiator tag (zoning alias) that names
+// one or more initiator WWPNs.
+func (s *FCTargetService) CreateInitiatorTag(ctx context.Context, name string, initiatorIDs []string) (*FCInitiatorTag, error) {
+	body := map[string]interface{}{"name": name, "initiator_ids": initiatorIDs}
+	resp, err := s.c.mutation(ctx, "CreateFCInitiatorTag", nil, body)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: create FC initiator tag: %w", err)
+	}
+	var tag FCInitiatorTag
+	if err := json.Unmarshal(resp, &tag); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode create FC initiator tag: %w", err)
+	}
+	return &tag, nil
+}
+
+// GetInitiatorTag fetches a single FC initiator tag.
+func (s *FCTargetService) GetInitiatorTag(ctx context.Context, id string) (*FCInitiatorTag, error) {
+	vars := url.Values{"id": {id}}
+	body, err := s.c.get(ctx, "GetFCInitiatorTag", vars)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get FC initiator tag: %w", err)
+	}
+	var tag FCInitiatorTag
+	if err := json.Unmarshal(body, &tag); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode FC initiator tag: %w", err)
+	}
+	return &tag, nil
+}
+
+// DeleteInitiatorTag removes an FC initiator tag. Idempotent.
+func (s *FCTargetService) DeleteInitiatorTag(ctx context.Context, id string) error {
+	vars := url.Values{"id": {id}}
+	_, err := s.c.mutation(ctx, "DeleteFCInitiatorTag", vars, nil)
+	if IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ngxstorage: delete FC initiator tag: %w", err)
 	}
 	return nil
 }

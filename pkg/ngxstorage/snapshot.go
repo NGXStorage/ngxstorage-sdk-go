@@ -55,8 +55,7 @@ func (s *SnapshotService) List(ctx context.Context) ([]Snapshot, error) {
 }
 
 // ListDetail fetches detailed snapshots from /api/v2/snapshot/list, optionally
-// filtered by one source volume ID. The NFS driver reads this endpoint for
-// CSI ListSnapshots and source validation.
+// filtered by one source volume ID.
 func (s *SnapshotService) ListDetail(ctx context.Context, volumeID string) ([]Snapshot, error) {
 	vars := url.Values{}
 	if volumeID != "" {
@@ -117,6 +116,61 @@ func (s *SnapshotService) Restore(ctx context.Context, snapID string) error {
 	_, err := s.c.mutation(ctx, "RestoreSnapshot", vars, body)
 	if err != nil {
 		return fmt.Errorf("ngxstorage: restore snapshot: %w", err)
+	}
+	return nil
+}
+
+// DeleteAll removes every snapshot of one source volume. Idempotent.
+func (s *SnapshotService) DeleteAll(ctx context.Context, volumeID string) error {
+	vars := url.Values{"id": {volumeID}}
+	_, err := s.c.mutation(ctx, "DeleteAllSnapshots", vars, nil)
+	if IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ngxstorage: delete all snapshots: %w", err)
+	}
+	return nil
+}
+
+// GetSchedule fetches the snapshot schedule of one source volume.
+func (s *SnapshotService) GetSchedule(ctx context.Context, volumeID string) (*SnapshotSchedule, error) {
+	vars := url.Values{"id": {volumeID}}
+	body, err := s.c.get(ctx, "GetSnapshotSchedule", vars)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: get snapshot schedule: %w", err)
+	}
+	var schedule SnapshotSchedule
+	if err := json.Unmarshal(body, &schedule); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode snapshot schedule: %w", err)
+	}
+	return &schedule, nil
+}
+
+// CreateSchedule installs a snapshot schedule on one source volume.
+func (s *SnapshotService) CreateSchedule(ctx context.Context, volumeID string, schedule SnapshotSchedule) (*SnapshotSchedule, error) {
+	vars := url.Values{"id": {volumeID}}
+	body := schedule
+	resp, err := s.c.mutation(ctx, "CreateSnapshotSchedule", vars, body)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: create snapshot schedule: %w", err)
+	}
+	var created SnapshotSchedule
+	if err := json.Unmarshal(resp, &created); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode create snapshot schedule: %w", err)
+	}
+	return &created, nil
+}
+
+// DeleteSchedule removes the snapshot schedule of one source volume. Idempotent.
+func (s *SnapshotService) DeleteSchedule(ctx context.Context, volumeID string) error {
+	vars := url.Values{"id": {volumeID}}
+	_, err := s.c.mutation(ctx, "DeleteSnapshotSchedule", vars, nil)
+	if IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ngxstorage: delete snapshot schedule: %w", err)
 	}
 	return nil
 }

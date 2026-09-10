@@ -20,18 +20,14 @@ import (
 // refresh preserves the previous selection. When PoolName is empty, only the
 // work-mode is validated and the first connected controller is selected.
 func (c *Client) RefreshController(ctx context.Context) error {
-	// Serialize refreshes with a one-slot gate.
-	if !c.refreshOnce {
-		c.refreshMu = make(chan struct{}, 1)
-		c.refreshMu <- struct{}{}
-		c.refreshOnce = true
-	}
+	// Serialize refresh campaigns without making a context-cancelled caller
+	// wait for another campaign to finish.
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-c.refreshMu:
+	case <-c.refreshGate:
 	}
-	defer func() { c.refreshMu <- struct{}{} }()
+	defer func() { c.refreshGate <- struct{}{} }()
 
 	type observation struct {
 		index     int
@@ -90,8 +86,7 @@ func (c *Client) RefreshController(ctx context.Context) error {
 	// With no configured pool, select the first connected candidate.
 	if c.poolName == "" {
 		for _, idx := range candidates {
-			c.nodeIndex = idx
-			c.lastRefresh = time.Now()
+			c.publishControllerSelection(idx)
 			c.logger.Infof("ngxstorage: controller selected (%s): %s", mode, c.controllers[idx])
 			return nil
 		}
@@ -128,15 +123,24 @@ func (c *Client) RefreshController(ctx context.Context) error {
 		return ErrPoolNotFound
 	}
 
-	c.nodeIndex = selected
-	c.lastRefresh = time.Now()
+	c.publishControllerSelection(selected)
 	c.logger.Infof("ngxstorage: controller selected (%s): %s", mode, c.controllers[selected])
 	return nil
 }
 
+func (c *Client) publishControllerSelection(index int) {
+	c.selectionMu.Lock()
+	c.controllerIndex = index
+	c.lastRefresh = time.Now()
+	c.selectionMu.Unlock()
+}
+
 // ensureRefresh triggers a periodic refresh if the selection is stale.
 func (c *Client) ensureRefresh(ctx context.Context) {
-	if c.lastRefresh.IsZero() || time.Since(c.lastRefresh) > 5*time.Minute {
+	c.selectionMu.RLock()
+	lastRefresh := c.lastRefresh
+	c.selectionMu.RUnlock()
+	if lastRefresh.IsZero() || time.Since(lastRefresh) > 5*time.Minute {
 		if err := c.RefreshController(ctx); err != nil {
 			c.logger.Warnf("ngxstorage: periodic refresh failed (retaining selection): %v", err)
 		}

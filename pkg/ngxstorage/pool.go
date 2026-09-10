@@ -26,6 +26,19 @@ func (s *PoolService) List(ctx context.Context) ([]Pool, error) {
 	return pools, nil
 }
 
+// ListDetail fetches all pools with full detail.
+func (s *PoolService) ListDetail(ctx context.Context) ([]Pool, error) {
+	body, err := s.c.get(ctx, "GetPoolDetailList", nil)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: list pool details: %w", err)
+	}
+	var pools []Pool
+	if err := json.Unmarshal(body, &pools); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode pool detail list: %w", err)
+	}
+	return pools, nil
+}
+
 // Get fetches a single pool.
 func (s *PoolService) Get(ctx context.Context, id string) (*Pool, error) {
 	vars := url.Values{"id": {id}}

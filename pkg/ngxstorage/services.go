@@ -64,3 +64,17 @@ func (s *ServiceService) NFSSettings(ctx context.Context) (map[string]interface{
 	}
 	return m, nil
 }
+
+// SetNFSSettings replaces the NFS settings document (PUT). Partial updates
+// require the caller to pass the full document as returned by NFSSettings.
+func (s *ServiceService) SetNFSSettings(ctx context.Context, settings map[string]interface{}) (map[string]interface{}, error) {
+	resp, err := s.c.mutation(ctx, "SetNFSSettings", nil, settings)
+	if err != nil {
+		return nil, fmt.Errorf("ngxstorage: set NFS settings: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(resp, &m); err != nil {
+		return nil, fmt.Errorf("ngxstorage: decode set NFS settings: %w", err)
+	}
+	return m, nil
+}

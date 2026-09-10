@@ -40,3 +40,31 @@ func (s *UserService) Get(ctx context.Context, id string) (map[string]interface{
 	}
 	return m, nil
 }
+
+// Create provisions a user. The password is never logged by the SDK.
+func (s *UserService) Create(ctx context.Context, user map[string]interface{}) (string, error) {
+	resp, err := s.c.mutation(ctx, "CreateUser", nil, user)
+	if err != nil {
+		return "", fmt.Errorf("ngxstorage: create user: %w", err)
+	}
+	var parsed struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(resp, &parsed); err != nil {
+		return "", fmt.Errorf("ngxstorage: decode create user: %w", err)
+	}
+	return parsed.ID, nil
+}
+
+// Delete removes a user. Idempotent.
+func (s *UserService) Delete(ctx context.Context, id string) error {
+	vars := url.Values{"id": {id}}
+	_, err := s.c.mutation(ctx, "DeleteUser", vars, nil)
+	if IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ngxstorage: delete user: %w", err)
+	}
+	return nil
+}
