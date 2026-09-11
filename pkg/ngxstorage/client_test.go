@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -180,6 +181,16 @@ func TestListEndpointParity(t *testing.T) {
 func TestLUNDeleteIdempotent(t *testing.T) {
 	calls := 0
 	c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		// The semantic-404 path probes cluster status and the pool list to
+		// rule out a stale controller selection before reporting the error.
+		if strings.Contains(r.URL.Path, "/status/cluster") {
+			w.Write([]byte(`{"connected":1,"status":"Master"}`))
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/api/v2/pool") {
+			w.Write([]byte(`[{"id":"pool1","name":"pool1"}]`))
+			return
+		}
 		calls++
 		// NotFound code 5011 → idempotent success.
 		w.Write([]byte(`{"code":5011,"error":"not found"}`))
