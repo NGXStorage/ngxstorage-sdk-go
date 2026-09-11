@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -480,15 +481,14 @@ func TestTransportFailoverReplaysSafeMethod(t *testing.T) {
 // A refused connection never reached the backend, so the retry is safe for
 // every method (POST included).
 func TestTransportRetryOnRefusedConnection(t *testing.T) {
-	calls := 0
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"ok":true}`))
 	}))
 	defer server.Close()
 
 	transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		calls++
-		if calls < 3 {
+		if calls.Add(1) < 3 {
 			return nil, fmt.Errorf("dial tcp: connect: %w", syscall.ECONNREFUSED)
 		}
 		req.URL.Scheme = "http"
@@ -503,17 +503,17 @@ func TestTransportRetryOnRefusedConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendRequest after refused retry: %v", err)
 	}
-	if calls != 3 {
-		t.Fatalf("calls = %d, want 3 (2 refused + 1 success)", calls)
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("calls = %d, want 3 (2 refused + 1 success)", got)
 	}
 }
 
 // A post-send failure (EOF) could have been processed, so unsafe methods must
 // not be replayed automatically.
 func TestTransportNoRetryOnEOFForUnsafeMethod(t *testing.T) {
-	calls := 0
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		calls.Add(1)
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
 			t.Fatal("hijacking unsupported")
@@ -539,18 +539,17 @@ func TestTransportNoRetryOnEOFForUnsafeMethod(t *testing.T) {
 	if err == nil {
 		t.Fatal("sendRequest succeeded on EOF for POST, want transport error")
 	}
-	if calls != 1 {
-		t.Fatalf("calls = %d, want 1 (no replay for unsafe method)", calls)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("calls = %d, want 1 (no replay for unsafe method)", got)
 	}
 }
 
 // EOF on an idempotent method is safe to replay and must ride out a brief
 // backend restart.
 func TestTransportRetryOnEOFForIdempotentMethod(t *testing.T) {
-	calls := 0
+	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if calls < 3 {
+		if calls.Add(1) < 3 {
 			hijacker, ok := w.(http.Hijacker)
 			if !ok {
 				t.Fatal("hijacking unsupported")
@@ -579,7 +578,7 @@ func TestTransportRetryOnEOFForIdempotentMethod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sendRequest after EOF retry: %v", err)
 	}
-	if calls != 3 {
-		t.Fatalf("calls = %d, want 3 (2 EOF + 1 success)", calls)
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("calls = %d, want 3 (2 EOF + 1 success)", got)
 	}
 }
