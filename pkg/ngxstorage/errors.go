@@ -122,6 +122,21 @@ func IsNotFound(err error) bool {
 	return ok && kind == "not_found"
 }
 
+// IsCanonicalNotFoundError reports whether err is the canonical NGX not-found:
+// an APIError carrying code 5011. A code-less HTTP 404 is deliberately NOT
+// matched. Operations on pool-owned resources document that a canonical 5011
+// can mean the request reached the stale controller; that recovery belongs to
+// the driver operation, which knows the postcondition. A code-less 404 is a
+// routing/object error and must never be turned into a write on another
+// controller.
+func IsCanonicalNotFoundError(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.Code == CodeNotFound
+}
+
 // IsAlreadyExists reports whether the error carries an already-exists code.
 func IsAlreadyExists(err error) bool {
 	kind, _, ok := Classify(err)

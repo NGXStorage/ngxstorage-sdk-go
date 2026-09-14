@@ -169,20 +169,12 @@ func (c *Client) request(ctx context.Context, name string, pathVars url.Values, 
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return resp, code, ctxErr
 	}
-	// A semantic NotFound can mean the request hit the wrong controller of a
-	// clustered array: resources are pool-owned and served by the owning
-	// controller (observed live: a share existed on one controller while a
-	// PATCH against the stale selection returned 5011). Re-resolve the
-	// controller and replay once when the selection actually changes; a truly
-	// missing object still reports 5011 after the replay.
-	if IsNotFound(err) {
-		before := c.CurrentController()
-		if refreshErr := c.RefreshController(ctx); refreshErr == nil && c.CurrentController() != before {
-			link = endpointURL(name, c.CurrentController(), pathVars)
-			return c.requestController(ctx, method, link, body)
-		}
-		return resp, code, err
-	}
+	// Semantic errors return unchanged. The request layer knows the HTTP
+	// method and an error code, but not the operation's idempotency key,
+	// postcondition or resource ownership rules; a write must never be
+	// replayed here. Operations that document "5011 can mean the stale
+	// controller" own that recovery at the driver layer (see
+	// IsCanonicalNotFoundError).
 	if !IsTransportError(err) {
 		return resp, code, err
 	}
