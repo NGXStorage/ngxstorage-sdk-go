@@ -220,8 +220,8 @@ type Initiator struct {
 
 // AuthGroup is an iSCSI auth group (CHAP credential container).
 type AuthGroup struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 	// ChapStatus is an integer (0/1) on current software; FlexBool also
 	// accepts the JSON booleans older releases return.
 	ChapStatus FlexBool    `json:"chap_status"`
