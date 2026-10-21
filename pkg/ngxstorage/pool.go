@@ -53,17 +53,19 @@ func (s *PoolService) Get(ctx context.Context, id string) (*Pool, error) {
 	return &pool, nil
 }
 
-// Overview returns the raw pool overview document.
-func (s *PoolService) Overview(ctx context.Context) (map[string]interface{}, error) {
+// Overview returns the raw pool overview records. The backend replies with a
+// bare array whose entries keep only a reduced field whitelist (they carry
+// neither the pool id nor its name).
+func (s *PoolService) Overview(ctx context.Context) ([]map[string]interface{}, error) {
 	body, err := s.c.get(ctx, "GetPoolOverview", nil)
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: get pool overview: %w", err)
 	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(body, &m); err != nil {
+	var records []map[string]interface{}
+	if err := json.Unmarshal(body, &records); err != nil {
 		return nil, fmt.Errorf("ngxstorage: decode pool overview: %w", err)
 	}
-	return m, nil
+	return records, nil
 }
 
 // GetConfiguredCapacity returns available and reserved bytes for the

@@ -37,7 +37,10 @@ type endpoint struct {
 
 // endpoints is the declarative map of all NGX API v2 endpoints used by the
 // SDK. Adding a new operation is a single map entry; URL construction and
-// path-variable substitution are handled by endpointURL.
+// path-variable substitution are handled by endpointURL. Seven entries
+// (ChangeAuthGroup, CreateFCTarget, UpdateFCTarget, DeleteFCTarget, GetFCPorts,
+// GetLUNList, GetPoolsStatus) are declared for API-surface coverage but no
+// service method uses them yet.
 var endpoints = map[string]endpoint{
 	// LUN
 	"CreateLUN":        {Group: lunGroup, Method: http.MethodPost, TrailingSlash: true},
@@ -127,15 +130,20 @@ var endpoints = map[string]endpoint{
 	"DeleteIQN":              {Group: authGroupGroup, Method: http.MethodDelete, Segments: []string{"iqn", "{id}"}, PathVars: url.Values{"id": {}}},
 
 	// Portal group (iSCSI)
-	"GetPortalGroupList": {Group: portalGroupGrp, Method: http.MethodGet},
-	"GetPortalGroup":     {Group: portalGroupGrp, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"CreatePortalGroup":  {Group: portalGroupGrp, Method: http.MethodPost},
-	"DeletePortalGroup":  {Group: portalGroupGrp, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"GetPortalGroupList":       {Group: portalGroupGrp, Method: http.MethodGet},
+	"GetPortalGroupDetailList": {Group: portalGroupGrp, Method: http.MethodGet, Segments: []string{"list"}},
+	"GetPortalGroup":           {Group: portalGroupGrp, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	// The deployed backend has no portal-group create/delete routes; these
+	// entries exist only for the Deprecated compatibility methods below.
+	"CreatePortalGroup": {Group: portalGroupGrp, Method: http.MethodPost},
+	"DeletePortalGroup": {Group: portalGroupGrp, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
 
 	// Initiators
-	"GetInitiators":      {Group: initiatorGroup, Method: http.MethodGet},
-	"GetFCInitiators":    {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"fc", "{id}"}, PathVars: url.Values{"id": {}}},
-	"GetISCSIInitiators": {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"iscsi", "{id}"}, PathVars: url.Values{"id": {}}},
+	"GetInitiators":         {Group: initiatorGroup, Method: http.MethodGet},
+	"GetFCInitiators":       {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"fc", "{id}"}, PathVars: url.Values{"id": {}}},
+	"GetFCInitiatorsAll":    {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"fc"}},
+	"GetISCSIInitiators":    {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"iscsi", "{id}"}, PathVars: url.Values{"id": {}}},
+	"GetISCSIInitiatorsAll": {Group: initiatorGroup, Method: http.MethodGet, Segments: []string{"iscsi"}},
 
 	// Hardware
 	"GetHardwareCPU":         {Group: hardwareGroup, Method: http.MethodGet, Segments: []string{"cpu", "list"}},
@@ -160,18 +168,14 @@ var endpoints = map[string]endpoint{
 	"GetSystemEventLog": {Group: logGroup, Method: http.MethodGet, Segments: []string{"system_event"}},
 
 	// Host, User, Network, Info
-	"GetHostList":       {Group: hostGroup, Method: http.MethodGet},
-	"GetHostDetailList": {Group: hostGroup, Method: http.MethodGet, Segments: []string{"list"}},
-	"GetHost":           {Group: hostGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"CreateHost":        {Group: hostGroup, Method: http.MethodPost},
-	"DeleteHost":        {Group: hostGroup, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"ModifyHost":        {Group: hostGroup, Method: http.MethodPatch, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"GetUserList":       {Group: userGroup, Method: http.MethodGet},
-	"GetUser":           {Group: userGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"CreateUser":        {Group: userGroup, Method: http.MethodPost},
-	"DeleteUser":        {Group: userGroup, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
-	"GetNetworkInfo":    {Group: networkGroup, Method: http.MethodGet, Segments: []string{"info"}},
-	"GetSystemInfo":     {Group: infoGroup, Method: http.MethodGet, Segments: []string{"system"}},
+	"GetHostList":    {Group: hostGroup, Method: http.MethodGet},
+	"GetHost":        {Group: hostGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"GetUserList":    {Group: userGroup, Method: http.MethodGet},
+	"GetUser":        {Group: userGroup, Method: http.MethodGet, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"CreateUser":     {Group: userGroup, Method: http.MethodPost},
+	"DeleteUser":     {Group: userGroup, Method: http.MethodDelete, Segments: []string{"{id}"}, PathVars: url.Values{"id": {}}},
+	"GetNetworkInfo": {Group: networkGroup, Method: http.MethodGet, Segments: []string{"info"}},
+	"GetSystemInfo":  {Group: infoGroup, Method: http.MethodGet, Segments: []string{"system"}},
 }
 
 // endpointURL builds an absolute URL for one canonical endpoint name against

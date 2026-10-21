@@ -50,7 +50,8 @@ type Config struct {
 	MaxDelay  time.Duration
 }
 
-// Client is the thread-safe entry point for all NGX API v2 operations. It
+// Client is the thread-safe entry point for the API v2 operations with
+// current consumers and verified contracts. It
 // owns the controller selection, bounded 725-busy retry, and transport
 // failover. Service accessors return lazily-bound per-resource services.
 type Client struct {

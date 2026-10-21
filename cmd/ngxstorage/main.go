@@ -127,9 +127,12 @@ func run(args []string) error {
 			Name:           rest[1],
 			SoftQuotaBytes: sizeGiB << 30,
 			BlockSize:      "128k",
-			Permissions:    "rwx",
 		})
 		if err != nil {
+			return err
+		}
+		// permissions is the 9-bit binary rwx string; 777 is all ones.
+		if err := client.Shares().Modify(ctx, share.ID, map[string]interface{}{"permissions": "111111111"}); err != nil {
 			return err
 		}
 		if err := client.Shares().SetExportEnabled(ctx, share.ID, true); err != nil {

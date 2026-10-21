@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"syscall"
 	"time"
 )
 
@@ -63,44 +62,17 @@ func withInner(req *http.Request, inner RoundTripper) *http.Request {
 
 type innerKey struct{}
 
-// retryConfig bounds the 725-busy retry behavior.
+// retryConfig bounds the 725-busy retry behavior. Transport failures are
+// never retried here: retry/backoff for them belongs to the caller or driver.
 type retryConfig struct {
 	MaxRetries int
 	BaseDelay  time.Duration
 	MaxDelay   time.Duration
-	// TransportBaseDelay and TransportMaxDelay bound the retry of transient
-	// transport failures: refused connections (any method) and post-send
-	// failures such as EOF (idempotent methods only).
-	TransportBaseDelay time.Duration
-	TransportMaxDelay  time.Duration
-}
-
-const (
-	defaultTransportBaseDelay = time.Second
-	defaultTransportMaxDelay  = 5 * time.Second
-)
-
-// transportRetryable reports whether a failed request may be retried. A
-// refused connection never reached the backend, so any method is safe; a
-// post-send failure (EOF, reset) could have been processed and is only
-// replayed for idempotent methods.
-func transportRetryable(method string, err error) bool {
-	if errors.Is(err, syscall.ECONNREFUSED) {
-		return true
-	}
-	return method == http.MethodGet || method == http.MethodDelete
-}
-
-func transportRetryDelay(attempt int, base, max time.Duration) time.Duration {
-	delay := time.Duration(attempt) * base
-	if delay > max {
-		delay = max
-	}
-	return delay
 }
 
 // sendRequest performs one bounded request with 725-busy retry and returns
-// the raw body, HTTP status, and a typed error for semantic failures.
+// the raw body, HTTP status, and a typed error for semantic failures. A
+// transport failure is returned immediately (no generic retry).
 func sendRequest(
 	ctx context.Context,
 	client *http.Client,
@@ -117,15 +89,6 @@ func sendRequest(
 			return nil, 0, fmt.Errorf("ngxstorage: marshal request body: %w", err)
 		}
 	}
-	transportBase := cfg.TransportBaseDelay
-	if transportBase <= 0 {
-		transportBase = defaultTransportBaseDelay
-	}
-	transportMax := cfg.TransportMaxDelay
-	if transportMax <= 0 {
-		transportMax = defaultTransportMaxDelay
-	}
-
 	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, 0, err
@@ -146,13 +109,10 @@ func sendRequest(
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return nil, 0, ctxErr
 			}
-			if attempt < cfg.MaxRetries && transportRetryable(method, err) {
-				logger.Warnf("ngxstorage: transient transport error, attempt %d/%d: %v", attempt, cfg.MaxRetries, err)
-				if serr := sleepContext(ctx, transportRetryDelay(attempt, transportBase, transportMax)); serr != nil {
-					return nil, 0, serr
-				}
-				continue
-			}
+			// Transport failures are never retried here: a post-send failure
+			// may already have been processed, and operation-specific retry
+			// belongs to the caller or driver. Safe methods get at most one
+			// cross-controller replay at the request layer instead.
 			return nil, 0, NewTransportError(method, urlStr, err)
 		}
 
@@ -185,7 +145,6 @@ func sendRequest(
 				StatusCode: resp.StatusCode,
 				Method:     method,
 				Endpoint:   urlStr,
-				Body:       append([]byte(nil), respBody...),
 			}
 		}
 
@@ -193,10 +152,9 @@ func sendRequest(
 			return respBody, resp.StatusCode, &APIError{
 				StatusCode: resp.StatusCode,
 				Code:       code,
-				Message:    msg,
+				Message:    redactSecret(msg, apiKey),
 				Method:     method,
 				Endpoint:   urlStr,
-				Body:       append([]byte(nil), respBody...),
 			}
 		}
 

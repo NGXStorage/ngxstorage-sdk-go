@@ -101,19 +101,20 @@ func (s *FCTargetService) ListInitiatorTags(ctx context.Context) ([]FCInitiatorT
 	return tags, nil
 }
 
-// CreateInitiatorTag provisions an FC initiator tag (zoning alias) that names
-// one or more initiator WWPNs.
-func (s *FCTargetService) CreateInitiatorTag(ctx context.Context, name string, initiatorIDs []string) (*FCInitiatorTag, error) {
-	body := map[string]interface{}{"name": name, "initiator_ids": initiatorIDs}
+// CreateInitiatorTag provisions an FC initiator tag (zoning alias) for one
+// initiator NAA. initiatorNAA is the 16-hex-char initiator identifier (no
+// "naa." prefix); tag is the alias name.
+func (s *FCTargetService) CreateInitiatorTag(ctx context.Context, initiatorNAA, tag string) (*FCInitiatorTag, error) {
+	body := map[string]interface{}{"initiator_naa": initiatorNAA, "tag": tag}
 	resp, err := s.c.mutation(ctx, "CreateFCInitiatorTag", nil, body)
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: create FC initiator tag: %w", err)
 	}
-	var tag FCInitiatorTag
-	if err := json.Unmarshal(resp, &tag); err != nil {
+	var created FCInitiatorTag
+	if err := json.Unmarshal(resp, &created); err != nil {
 		return nil, fmt.Errorf("ngxstorage: decode create FC initiator tag: %w", err)
 	}
-	return &tag, nil
+	return &created, nil
 }
 
 // GetInitiatorTag fetches a single FC initiator tag.

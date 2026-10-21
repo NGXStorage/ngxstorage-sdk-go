@@ -129,15 +129,22 @@ func (s *StatusService) License(ctx context.Context) (map[string]interface{}, er
 	return m, nil
 }
 
-// OverloadedVolumes returns the raw overloaded-volumes status document.
-func (s *StatusService) OverloadedVolumes(ctx context.Context) ([]map[string]interface{}, error) {
+// OverloadedVolumeReport is the document of GET /api/v2/status/overloaded_
+// volumes: the overloaded volume records plus the report timestamp.
+type OverloadedVolumeReport struct {
+	OverloadedVolumes []map[string]interface{} `json:"overloaded_volumes"`
+	LastCheckTime     float64                  `json:"last_check_time"`
+}
+
+// OverloadedVolumes returns the overloaded-volumes status document.
+func (s *StatusService) OverloadedVolumes(ctx context.Context) (*OverloadedVolumeReport, error) {
 	body, err := s.c.get(ctx, "GetOverloadedVolumes", nil)
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: get overloaded volumes: %w", err)
 	}
-	var m []map[string]interface{}
-	if err := json.Unmarshal(body, &m); err != nil {
+	var report OverloadedVolumeReport
+	if err := json.Unmarshal(body, &report); err != nil {
 		return nil, fmt.Errorf("ngxstorage: decode overloaded volumes: %w", err)
 	}
-	return m, nil
+	return &report, nil
 }

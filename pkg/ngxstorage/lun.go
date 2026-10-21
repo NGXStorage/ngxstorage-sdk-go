@@ -15,9 +15,10 @@ type LUNService struct{ c *Client }
 func (c *Client) LUNs() *LUNService { return &LUNService{c} }
 
 // LUNCreateOptions carries the optional LUN create attributes
-// (POST /api/v2/lun/). Zero values are omitted from the request.
+// (POST /api/v2/lun/). Zero values are omitted from the request so the
+// backend applies its defaults.
 type LUNCreateOptions struct {
-	Blocksize     string // "4k".."1024k" | "auto"
+	Blocksize     string // "4k" | "8k" | "16k" | "32k" | "64k" | "128k"; default 32k (pool blocksize when omitted)
 	Deduplication string // "on" | "off"
 	Compression   string // "on" | "off"
 	ThinProvision string // "on" | "off"

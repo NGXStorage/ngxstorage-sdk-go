@@ -8,19 +8,30 @@ import (
 	"net/url"
 )
 
-// ShareCreateRequest carries the canonical NFS share create fields. The
+// ShareCreateRequest carries only fields supported by share creation. The
 // backend expects soft_quota as a flat byte count (never nested) and boolean
-// storage attributes; the SDK does not reinterpret units or field names.
+// storage attributes. Permissions are changed separately with Modify after
+// creation; the SDK does not orchestrate that workflow. Nil cache pointers
+// leave those modify-only attributes unchanged; non-nil pointers explicitly
+// set them on or off.
+//
+// The create route declares only blocksize, deduplication, compression, the
+// export flags, and the quota fields. An empty BlockSize is omitted so the
+// backend default (128k) applies, and FlashCache/DramCache/FlashTierLimit are
+// applied with a follow-up modify using the canonical modify key names.
 type ShareCreateRequest struct {
 	Name           string
 	SoftQuotaBytes int64
 	BlockSize      string
-	FlashCache     bool
-	DramCache      bool
+	FlashCache     *bool
+	DramCache      *bool
 	Dedup          bool
 	Compress       bool
-	Permissions    string
 	FlashTierLimit string
+}
+
+func flexBoolValue(value *bool) FlexBool {
+	return FlexBool(value != nil && *value)
 }
 
 // ShareService manages file (NFS) volumes.
@@ -30,8 +41,9 @@ type ShareService struct{ c *Client }
 func (c *Client) Shares() *ShareService { return &ShareService{c} }
 
 // Create provisions an NFS share on the configured pool with its export
-// disabled. SHARE_CREATE acknowledges success without returning the canonical
-// id, so the created share ID is resolved from the lightweight list.
+// disabled. The backend acks with the canonical volume_id, but the ID is still
+// resolved from the lightweight list so a pre-existing same-name share (which
+// the create call returns unchanged) resolves to its real identity.
 func (s *ShareService) Create(ctx context.Context, req ShareCreateRequest) (*Share, error) {
 	if req.Name == "" {
 		return nil, errors.New("ngxstorage: share name is required")
@@ -39,18 +51,19 @@ func (s *ShareService) Create(ctx context.Context, req ShareCreateRequest) (*Sha
 	if req.SoftQuotaBytes <= 0 {
 		return nil, errors.New("ngxstorage: share soft quota must be a positive byte value")
 	}
+	// The create route declares only blocksize, deduplication, compression,
+	// the export flags, and the quota fields. An empty blocksize is omitted
+	// so the backend default (128k) applies instead of failing validation.
 	body := map[string]interface{}{
-		"pool_name":       s.c.poolName,
-		"name":            req.Name,
-		"soft_quota":      req.SoftQuotaBytes,
-		"blocksize":       req.BlockSize,
-		"flash_cache":     req.FlashCache,
-		"dram_cache":      req.DramCache,
-		"deduplication":   req.Dedup,
-		"compression":     req.Compress,
-		"permissions":     req.Permissions,
-		"flashtier_limit": req.FlashTierLimit,
-		"nfs_export":      false,
+		"pool_name":     s.c.poolName,
+		"name":          req.Name,
+		"soft_quota":    req.SoftQuotaBytes,
+		"deduplication": req.Dedup,
+		"compression":   req.Compress,
+		"nfs_export":    false,
+	}
+	if req.BlockSize != "" {
+		body["blocksize"] = req.BlockSize
 	}
 	if _, err := s.c.mutation(ctx, "CreateShare", nil, body); err != nil {
 		return nil, fmt.Errorf("ngxstorage: create share: %w", err)
@@ -62,23 +75,48 @@ func (s *ShareService) Create(ctx context.Context, req ShareCreateRequest) (*Sha
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: resolve created share id: %w", err)
 	}
+	var shareID string
 	for _, ref := range refs {
 		if ref.Name == req.Name {
-			return &Share{
-				ID:             ref.ID,
-				Name:           req.Name,
-				PoolName:       s.c.poolName,
-				BlockSize:      req.BlockSize,
-				Dedup:          flexBoolString(req.Dedup),
-				Compress:       flexBoolString(req.Compress),
-				FlashCache:     flexBoolString(req.FlashCache),
-				DramCache:      flexBoolString(req.DramCache),
-				Permissions:    req.Permissions,
-				FlashTierLimit: req.FlashTierLimit,
-			}, nil
+			shareID = ref.ID
+			break
 		}
 	}
-	return nil, fmt.Errorf("ngxstorage: created share %q is missing from the canonical list", req.Name)
+	if shareID == "" {
+		return nil, fmt.Errorf("ngxstorage: created share %q is missing from the canonical list", req.Name)
+	}
+
+	// Cache and flashtier attributes are modify-only on the backend; apply
+	// them with the canonical modify key names after the share exists.
+	modifyFields := map[string]interface{}{}
+	if req.FlashCache != nil {
+		modifyFields["flash_cache"] = *req.FlashCache
+	}
+	if req.DramCache != nil {
+		modifyFields["dram_cache"] = *req.DramCache
+	}
+	if req.FlashTierLimit != "" {
+		modifyFields["flashtier_blocksize_limit"] = req.FlashTierLimit
+	}
+	if len(modifyFields) > 0 {
+		if err := s.Modify(ctx, shareID, modifyFields); err != nil {
+			return nil, fmt.Errorf("ngxstorage: apply create attributes: %w", err)
+		}
+	}
+
+	return &Share{
+		ID:       shareID,
+		Name:     req.Name,
+		PoolName: s.c.poolName,
+		Storage: ShareStorage{
+			BlockSize:      req.BlockSize,
+			Deduplication:  FlexBool(req.Dedup),
+			Compression:    FlexBool(req.Compress),
+			DramCache:      flexBoolValue(req.DramCache),
+			FlashCache:     flexBoolValue(req.FlashCache),
+			FlashTierLimit: req.FlashTierLimit,
+		},
+	}, nil
 }
 
 // Get fetches a single share.
@@ -168,13 +206,4 @@ func (s *ShareService) SetExportEnabled(ctx context.Context, id string, enabled 
 // canonical nfs_read_only JSON boolean.
 func (s *ShareService) SetReadOnly(ctx context.Context, id string, readOnly bool) error {
 	return s.Modify(ctx, id, map[string]interface{}{"nfs_read_only": readOnly})
-}
-
-// flexBoolString renders a bool as the canonical "1"/"" NFS storage attribute
-// string used inside Share responses assembled from a create request.
-func flexBoolString(v bool) string {
-	if v {
-		return "1"
-	}
-	return ""
 }

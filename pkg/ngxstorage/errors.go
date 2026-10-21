@@ -3,6 +3,7 @@ package ngxstorage
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Backend error codes returned by the NGX Storage Manager API v2. These are
@@ -36,17 +37,34 @@ const (
 )
 
 // APIError describes a semantic backend error returned by the NGX API v2.
-// It carries the HTTP status, the canonical NGX error code, and the raw
-// response body (never logged by the SDK itself).
+// It carries the HTTP status, the canonical NGX error code and the server
+// message. Raw response bodies are never retained, and any occurrence of the
+// configured API key inside a server-provided message is redacted so a
+// server/proxy that echoes request material cannot leak credentials through
+// the error surface.
 type APIError struct {
 	StatusCode int
 	Code       int
 	Message    string
 	Method     string
 	Endpoint   string
-	Body       []byte
+	// Body is the raw response body.
+	//
+	// Deprecated: never populated; always nil.
+	Body []byte
 }
 
+// redactSecret replaces every occurrence of secret in text with a marker.
+// It is a no-op for an empty secret.
+func redactSecret(text, secret string) string {
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[REDACTED]")
+}
+
+// Error renders the API status, NGX code, message, and the request method and
+// endpoint. It carries no credentials: the SDK never places secrets in the URL.
 func (e *APIError) Error() string {
 	if e.Code != 0 {
 		return fmt.Sprintf("ngxstorage api error: method=%s endpoint=%s http_status=%d code=%d message=%q", e.Method, e.Endpoint, e.StatusCode, e.Code, e.Message)
@@ -61,10 +79,12 @@ type TransportError struct {
 	Err      error
 }
 
+// Error renders the transport failure with the request method and endpoint.
 func (e *TransportError) Error() string {
 	return fmt.Sprintf("ngxstorage transport error: method=%s endpoint=%s: %v", e.Method, e.Endpoint, e.Err)
 }
 
+// Unwrap exposes the underlying network error to errors.Is and errors.As.
 func (e *TransportError) Unwrap() error { return e.Err }
 
 // NewTransportError constructs a TransportError for a request-level failure.

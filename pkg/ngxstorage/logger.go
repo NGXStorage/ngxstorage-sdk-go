@@ -16,7 +16,14 @@ type Logger interface {
 // inject a logger.
 type NopLogger struct{}
 
+// Debugf discards the message.
 func (NopLogger) Debugf(string, ...any) {}
-func (NopLogger) Infof(string, ...any)  {}
-func (NopLogger) Warnf(string, ...any)  {}
+
+// Infof discards the message.
+func (NopLogger) Infof(string, ...any) {}
+
+// Warnf discards the message.
+func (NopLogger) Warnf(string, ...any) {}
+
+// Errorf discards the message.
 func (NopLogger) Errorf(string, ...any) {}

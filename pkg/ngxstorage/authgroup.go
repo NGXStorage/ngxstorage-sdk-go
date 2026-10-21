@@ -13,7 +13,8 @@ type AuthGroupService struct{ c *Client }
 // AuthGroups returns the auth group service.
 func (c *Client) AuthGroups() *AuthGroupService { return &AuthGroupService{c} }
 
-// Create provisions an auth group. Returns the new group ID.
+// Create provisions an auth group. Returns the new group ID as its decimal
+// string (the backend acks with a numeric group_id).
 func (s *AuthGroupService) Create(ctx context.Context, name, owner string) (string, error) {
 	body := map[string]interface{}{"name": name, "owner": owner}
 	resp, err := s.c.mutation(ctx, "CreateAuthGroup", nil, body)
@@ -21,12 +22,12 @@ func (s *AuthGroupService) Create(ctx context.Context, name, owner string) (stri
 		return "", fmt.Errorf("ngxstorage: create auth group: %w", err)
 	}
 	var parsed struct {
-		ID string `json:"id"`
+		ID json.Number `json:"id"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
 		return "", fmt.Errorf("ngxstorage: decode create auth group: %w", err)
 	}
-	return parsed.ID, nil
+	return parsed.ID.String(), nil
 }
 
 // Get fetches an auth group including its CHAP and initiators.

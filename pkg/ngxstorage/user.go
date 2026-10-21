@@ -41,19 +41,21 @@ func (s *UserService) Get(ctx context.Context, id string) (map[string]interface{
 	return m, nil
 }
 
-// Create provisions a user. The password is never logged by the SDK.
+// Create provisions a user. The password is never logged by the SDK. The
+// role value must be the string "admin" or "monitor". The backend acks with
+// {"id": <numeric epoch id>}, returned as its decimal string.
 func (s *UserService) Create(ctx context.Context, user map[string]interface{}) (string, error) {
 	resp, err := s.c.mutation(ctx, "CreateUser", nil, user)
 	if err != nil {
 		return "", fmt.Errorf("ngxstorage: create user: %w", err)
 	}
 	var parsed struct {
-		ID string `json:"id"`
+		ID json.Number `json:"id"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
 		return "", fmt.Errorf("ngxstorage: decode create user: %w", err)
 	}
-	return parsed.ID, nil
+	return parsed.ID.String(), nil
 }
 
 // Delete removes a user. Idempotent.

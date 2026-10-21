@@ -2,6 +2,7 @@ package ngxstorage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,6 +107,67 @@ func TestSDKLogsNeverContainSecrets(t *testing.T) {
 	}
 	if !secretSeenInRequest {
 		t.Fatal("test setup: CHAP password never reached the backend")
+	}
+	assertNoSecrets(t, logger.joined())
+}
+
+// A server or proxy can echo request material (including the API key) inside
+// the response error field. The SDK must scrub the configured key from the
+// APIError message/string surface, must not retain the raw body, and must not
+// let the key reach its logs.
+func TestAPIErrorRedactsEchoedKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/status/cluster"):
+			w.Write([]byte(`{"connected":1,"status":"Master"}`))
+		case strings.HasSuffix(r.URL.Path, "/api/v2/pool"):
+			w.Write([]byte(`[{"id":"pool1","name":"pool1","owner":"o"}]`))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"code":5000,"error":"server echoed ` + redactionAPIKey + `"}`))
+		}
+	}))
+	defer server.Close()
+
+	logger := &captureLogger{}
+	client := redactionClient(t, logger, roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		req.URL.Scheme = "http"
+		req.URL.Host = server.Listener.Addr().String()
+		return http.DefaultTransport.RoundTrip(req)
+	}))
+
+	_, err := client.Logs().Alerts(context.Background())
+	if err == nil {
+		t.Fatal("Alerts succeeded, want backend error")
+	}
+	if strings.Contains(err.Error(), redactionAPIKey) {
+		t.Fatalf("APIError leaked the API key: %v", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error type = %T, want *APIError", err)
+	}
+	if strings.Contains(apiErr.Message, redactionAPIKey) {
+		t.Fatalf("APIError.Message leaked the API key: %q", apiErr.Message)
+	}
+	if !strings.Contains(apiErr.Message, "[REDACTED]") {
+		t.Fatalf("APIError.Message = %q, want a redaction marker", apiErr.Message)
+	}
+	if apiErr.Body != nil {
+		t.Fatalf("APIError.Body = %q, want nil (Deprecated: never populated)", apiErr.Body)
+	}
+	for _, rendered := range []string{fmt.Sprintf("%+v", apiErr), fmt.Sprintf("%#v", apiErr)} {
+		if strings.Contains(rendered, redactionAPIKey) {
+			t.Fatalf("structured rendering leaked the API key: %s", rendered)
+		}
+	}
+	wrapped := fmt.Errorf("audit failed: %w", err)
+	if strings.Contains(wrapped.Error(), redactionAPIKey) {
+		t.Fatalf("wrapped chain leaked the API key: %v", wrapped)
+	}
+	var wrappedErr *APIError
+	if !errors.As(wrapped, &wrappedErr) {
+		t.Fatal("wrapped chain lost the APIError type")
 	}
 	assertNoSecrets(t, logger.joined())
 }

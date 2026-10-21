@@ -59,23 +59,19 @@ func (s *ISCSITargetService) Get(ctx context.Context, id string) (*ISCSITarget, 
 }
 
 // Create provisions a new iSCSI target. The backend requires name,
-// auth_group_id, portal_group_id, and owner.
-func (s *ISCSITargetService) Create(ctx context.Context, name, authGroupID, portalGroupID, owner string) (*ISCSITarget, error) {
+// auth_group_id, portal_group_id, and owner and acknowledges with only
+// {"success": true}; resolve the created target's id from ListNames by name.
+func (s *ISCSITargetService) Create(ctx context.Context, name, authGroupID, portalGroupID, owner string) error {
 	body := map[string]interface{}{
 		"name":            name,
 		"auth_group_id":   authGroupID,
 		"portal_group_id": portalGroupID,
 		"owner":           owner,
 	}
-	resp, err := s.c.mutation(ctx, "CreateISCSITarget", nil, body)
-	if err != nil {
-		return nil, fmt.Errorf("ngxstorage: create iSCSI target: %w", err)
+	if _, err := s.c.mutation(ctx, "CreateISCSITarget", nil, body); err != nil {
+		return fmt.Errorf("ngxstorage: create iSCSI target: %w", err)
 	}
-	var target ISCSITarget
-	if err := json.Unmarshal(resp, &target); err != nil {
-		return nil, fmt.Errorf("ngxstorage: decode create iSCSI target: %w", err)
-	}
-	return &target, nil
+	return nil
 }
 
 // Delete removes an iSCSI target. Idempotent.

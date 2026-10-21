@@ -16,7 +16,8 @@ canonical backend fields.
 - Transport failover replays safe methods (GET/DELETE) only — **POST never replayed**
 - Optional TLS verification (skipped by default — NGX Storage Arrays are self-signed)
 - Pluggable `Logger` and `RoundTripper` middleware chain
-- Per-resource services covering every API v2 group
+- Per-resource services for the API v2 groups with current consumers and
+  verified contracts
 
 ## Install
 
@@ -103,15 +104,21 @@ func main() {
 | FC target | `client.FCTargets()` | `List`, `ListDetail`, `ListNames`, `Get`, `AddLUN`, `RemoveLUN`, `ListInitiatorTags`, `GetInitiatorTag`, `CreateInitiatorTag`, `DeleteInitiatorTag` |
 | iSCSI target | `client.ISCSITargets()` | `List`, `ListDetail`, `ListNames`, `Get`, `Create`, `Delete`, `AddLUN`, `RemoveLUN`, `ChangeName`, `ChangePortalGroup`, `ChangeAuthGroup` |
 | Auth group | `client.AuthGroups()` | `Create`, `Get`, `List`, `ListDetail`, `Delete`, `AddCHAP`, `DeleteCHAP`, `AddIQN`, `DeleteIQN` |
-| Portal group | `client.PortalGroups()` | `List`, `Get`, `Create`, `Delete` |
+| Portal group | `client.PortalGroups()` | `List`, `ListDetail`, `Get` (`Create`/`Delete` deprecated — the backend has no such routes) |
 | Pool | `client.Pools()` | `List`, `ListDetail`, `Get`, `Overview`, `GetConfiguredCapacity` |
 | Status | `client.Status()` | `Cluster`, `Services`, `Capacity`, `IOPS`, `Bandwidth`, `CPU`, `Cache`, `License`, `OverloadedVolumes`, `Enclosures` |
-| Hardware | `client.Hardware()` | `Disks`, `Memory`, `MemoryTotal`, `CPU`, `Fans`, `PowerSupplies`, `Enclosures`, `List` |
-| Host | `client.Hosts()` | `List`, `Get` |
-| Initiator | `client.Initiators()` | `List`, `GetFC`, `GetISCSI` |
-| Log | `client.Logs()` | `Alerts`, `Audit`, `SystemEvents` |
-| Services (NFS) | `client.Services()` | `NFSStatus`, `NFSStart`, `NFSStop`, `NFSRestart`, `NFSSettings` |
-| Info / Network / User | `client.Info()`, `client.Network()`, `client.Users()` | `System`, `Info`, `List`/`Get` |
+| Hardware | `client.Hardware()` | `Disks`, `Memory`, `MemoryTotal`, `CPU`, `Fans`, `PowerSupplies`, `Enclosures` — unsupported |
+| Host (deprecated) | `client.Hosts()` | `List`, `Get` — deprecated; deployed endpoint is unsupported (5012) |
+| Initiator | `client.Initiators()` | `List`, `GetFC`, `GetISCSI` — unsupported |
+| Log | `client.Logs()` | `Alerts`, `Audit`, `SystemEvents` — unsupported |
+| Services (NFS) | `client.Services()` | `NFSStatus`, `NFSStart`, `NFSStop`, `NFSRestart`, `NFSSettings`, `SetNFSSettings` — unsupported |
+| Info / Network / User | `client.Info()`, `client.Network()`, `client.Users()` | `System`, `Info`, `List`/`Get` — unsupported |
+
+Unsupported rows have no current consumer and no approved deployed contract;
+they are not supported production surface. `Host` is retained unchanged for
+released v1 compile compatibility and is deprecated (the deployed host
+endpoints return 5012). `PortalGroups().Create`/`Delete` are likewise
+deprecated: portal groups are read-only in API v2 and the calls return 5012.
 
 ## CLI
 

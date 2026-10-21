@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -489,36 +488,6 @@ func TestTransportFailoverReplaysSafeMethod(t *testing.T) {
 	}
 }
 
-// A refused connection never reached the backend, so the retry is safe for
-// every method (POST included).
-func TestTransportRetryOnRefusedConnection(t *testing.T) {
-	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"ok":true}`))
-	}))
-	defer server.Close()
-
-	transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		if calls.Add(1) < 3 {
-			return nil, fmt.Errorf("dial tcp: connect: %w", syscall.ECONNREFUSED)
-		}
-		req.URL.Scheme = "http"
-		req.URL.Host = server.Listener.Addr().String()
-		return http.DefaultTransport.RoundTrip(req)
-	})
-
-	_, _, err := sendRequest(context.Background(), &http.Client{Transport: transport}, NopLogger{},
-		http.MethodPost, "https://x/api/v2/lun", "test-key", map[string]string{"name": "v"},
-		retryConfig{MaxRetries: 4, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond,
-			TransportBaseDelay: time.Millisecond, TransportMaxDelay: time.Millisecond})
-	if err != nil {
-		t.Fatalf("sendRequest after refused retry: %v", err)
-	}
-	if got := calls.Load(); got != 3 {
-		t.Fatalf("calls = %d, want 3 (2 refused + 1 success)", got)
-	}
-}
-
 // A post-send failure (EOF) could have been processed, so unsafe methods must
 // not be replayed automatically.
 func TestTransportNoRetryOnEOFForUnsafeMethod(t *testing.T) {
@@ -545,51 +514,11 @@ func TestTransportNoRetryOnEOFForUnsafeMethod(t *testing.T) {
 
 	_, _, err := sendRequest(context.Background(), &http.Client{Transport: transport}, NopLogger{},
 		http.MethodPost, "https://x/api/v2/lun", "test-key", map[string]string{"name": "v"},
-		retryConfig{MaxRetries: 4, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond,
-			TransportBaseDelay: time.Millisecond, TransportMaxDelay: time.Millisecond})
+		retryConfig{MaxRetries: 4, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond})
 	if err == nil {
 		t.Fatal("sendRequest succeeded on EOF for POST, want transport error")
 	}
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("calls = %d, want 1 (no replay for unsafe method)", got)
-	}
-}
-
-// EOF on an idempotent method is safe to replay and must ride out a brief
-// backend restart.
-func TestTransportRetryOnEOFForIdempotentMethod(t *testing.T) {
-	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if calls.Add(1) < 3 {
-			hijacker, ok := w.(http.Hijacker)
-			if !ok {
-				t.Fatal("hijacking unsupported")
-			}
-			conn, _, err := hijacker.Hijack()
-			if err != nil {
-				t.Fatal(err)
-			}
-			conn.Close()
-			return
-		}
-		w.Write([]byte(`{"ok":true}`))
-	}))
-	defer server.Close()
-
-	transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		req.URL.Scheme = "http"
-		req.URL.Host = server.Listener.Addr().String()
-		return http.DefaultTransport.RoundTrip(req)
-	})
-
-	_, _, err := sendRequest(context.Background(), &http.Client{Transport: transport}, NopLogger{},
-		http.MethodGet, "https://x/api/v2/lun/list", "test-key", nil,
-		retryConfig{MaxRetries: 4, BaseDelay: time.Millisecond, MaxDelay: time.Millisecond,
-			TransportBaseDelay: time.Millisecond, TransportMaxDelay: time.Millisecond})
-	if err != nil {
-		t.Fatalf("sendRequest after EOF retry: %v", err)
-	}
-	if got := calls.Load(); got != 3 {
-		t.Fatalf("calls = %d, want 3 (2 EOF + 1 success)", got)
 	}
 }

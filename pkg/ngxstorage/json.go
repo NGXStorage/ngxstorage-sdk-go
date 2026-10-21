@@ -19,19 +19,51 @@ func (l *FCTargetLUN) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if len(decoded.Number) == 0 || string(decoded.Number) == "null" {
-		l.Number = ""
-		return nil
-	}
-	if decoded.Number[0] == '"' {
-		return json.Unmarshal(decoded.Number, &l.Number)
-	}
-	var number json.Number
-	if err := json.Unmarshal(decoded.Number, &number); err != nil {
+	number, err := flexNumberString(decoded.Number)
+	if err != nil {
 		return fmt.Errorf("ngxstorage: decode FC LUN number: %w", err)
 	}
-	l.Number = number.String()
+	l.Number = number
 	return nil
+}
+
+// UnmarshalJSON accepts both the numeric and quoted-string encodings of the
+// SCSI LUN number emitted by different NGX releases, preserving Number as a
+// string for callers.
+func (l *ISCSITargetLUN) UnmarshalJSON(data []byte) error {
+	type lunAlias ISCSITargetLUN
+	decoded := struct {
+		*lunAlias
+		Number json.RawMessage `json:"number"`
+	}{lunAlias: (*lunAlias)(l)}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	number, err := flexNumberString(decoded.Number)
+	if err != nil {
+		return fmt.Errorf("ngxstorage: decode iSCSI LUN number: %w", err)
+	}
+	l.Number = number
+	return nil
+}
+
+// flexNumberString renders a numeric or quoted-string JSON token as a string.
+func flexNumberString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+	if raw[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(raw, &number); err != nil {
+		return "", err
+	}
+	return number.String(), nil
 }
 
 // FlexBool decodes the canonical NGX boolean encodings: JSON boolean,

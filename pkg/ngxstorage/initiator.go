@@ -26,10 +26,13 @@ func (s *InitiatorService) List(ctx context.Context) ([]Initiator, error) {
 	return inits, nil
 }
 
-// GetFC fetches FC initiators for a target.
+// GetFC fetches FC initiators; pass an empty id for the unfiltered list.
 func (s *InitiatorService) GetFC(ctx context.Context, id string) ([]Initiator, error) {
-	vars := url.Values{"id": {id}}
-	body, err := s.c.get(ctx, "GetFCInitiators", vars)
+	name, vars := "GetFCInitiators", url.Values{"id": {id}}
+	if id == "" {
+		name, vars = "GetFCInitiatorsAll", nil
+	}
+	body, err := s.c.get(ctx, name, vars)
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: get FC initiators: %w", err)
 	}
@@ -40,10 +43,13 @@ func (s *InitiatorService) GetFC(ctx context.Context, id string) ([]Initiator, e
 	return inits, nil
 }
 
-// GetISCSI fetches iSCSI initiators for a target.
+// GetISCSI fetches iSCSI initiators; pass an empty id for the unfiltered list.
 func (s *InitiatorService) GetISCSI(ctx context.Context, id string) ([]Initiator, error) {
-	vars := url.Values{"id": {id}}
-	body, err := s.c.get(ctx, "GetISCSIInitiators", vars)
+	name, vars := "GetISCSIInitiators", url.Values{"id": {id}}
+	if id == "" {
+		name, vars = "GetISCSIInitiatorsAll", nil
+	}
+	body, err := s.c.get(ctx, name, vars)
 	if err != nil {
 		return nil, fmt.Errorf("ngxstorage: get iSCSI initiators: %w", err)
 	}

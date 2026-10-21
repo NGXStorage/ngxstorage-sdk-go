@@ -28,30 +28,29 @@ type LUN struct {
 	SizeBySnapshots FlexBytes `json:"sizebysnapshots"`
 	Owner           string    `json:"owner"`
 	PoolName        string    `json:"pool_name"`
-	Created         FlexBytes `json:"created"` // unix timestamp; number or string
+	// Created is the creation timestamp string (e.g. 2025-11-24T08:50:44Z).
+	Created string `json:"created"`
 	// Protocols maps protocol name to its target reference, e.g. {"fc": "tgtA"}.
 	Protocols map[string]string `json:"protocols"`
 }
 
 // Share is a file (NFS) volume on the NGX Storage backend. Field names mirror
-// the live backend JSON per the canonical NFS contract; the SDK does not probe
-// alternate names.
+// the live backend JSON of GET /api/v2/share/{id} and GET /api/v2/share/list.
 type Share struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	PoolName string `json:"pool_name"`
-	// Capacity nests the canonical soft_quota byte value.
+	Owner    string `json:"owner"`
+	// Created is the creation timestamp; absent or zero quotas/timestamps are
+	// serialized by the backend as null.
+	Created  *FlexBytes `json:"created"`
+	ShareIPs []string   `json:"share_ips"`
+	// Capacity nests the share capacity and quota byte values.
 	Capacity ShareCapacity `json:"capacity"`
+	// Storage nests the storage attributes (blocksize, caches, permissions).
+	Storage ShareStorage `json:"storage"`
 	// Exports nests the canonical NFS export state.
 	Exports ShareExports `json:"exports"`
-	// Storage attributes use the canonical NFS field names.
-	BlockSize      string `json:"blocksize"`
-	Dedup          string `json:"deduplication"`
-	Compress       string `json:"compression"`
-	FlashCache     string `json:"flash_cache"`
-	DramCache      string `json:"dram_cache"`
-	Permissions    string `json:"permissions"`
-	FlashTierLimit string `json:"flashtier_limit"`
 }
 
 // UnmarshalJSON decodes a share with the exact strictness each document
@@ -60,60 +59,112 @@ type Share struct {
 //   - identity and storage attributes are lenient: type-invalid values decode
 //     to their zero values so one malformed record inside a list response does
 //     not hide the remaining records;
-//   - capacity.soft_quota is lenient: a malformed quota decodes to zero and
-//     callers that require a quota (expand, idempotency, list validation)
-//     reject it explicitly;
+//   - capacity quotas are nullable pointers: a null or malformed quota decodes
+//     to nil and callers that require a quota reject it explicitly;
 //   - exports.nfs.enabled and exports.nfs.read_only are strict: a present but
 //     malformed export state is an error, because silently treating a corrupt
 //     export as disabled would publish or unpublish the wrong share mode.
 func (s *Share) UnmarshalJSON(data []byte) error {
-	var m map[string]interface{}
-	if err := json.Unmarshal(data, &m); err != nil {
+	*s = Share{}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	s.ID, _ = m["id"].(string)
-	s.Name, _ = m["name"].(string)
-	s.PoolName, _ = m["pool_name"].(string)
-	if capacity, ok := m["capacity"].(map[string]interface{}); ok {
-		if raw, ok := capacity["soft_quota"]; ok {
-			if bytes, err := flexBytesFromValue(raw); err == nil {
-				s.Capacity.SoftQuota = bytes
+	decodeLenientJSONField(fields, "id", &s.ID)
+	decodeLenientJSONField(fields, "name", &s.Name)
+	decodeLenientJSONField(fields, "pool_name", &s.PoolName)
+	decodeLenientJSONField(fields, "owner", &s.Owner)
+	decodeLenientJSONField(fields, "created", &s.Created)
+	decodeLenientJSONField(fields, "share_ips", &s.ShareIPs)
+
+	var capacity map[string]json.RawMessage
+	if raw := fields["capacity"]; len(raw) != 0 && json.Unmarshal(raw, &capacity) == nil {
+		decodeLenientJSONField(capacity, "used", &s.Capacity.Used)
+		decodeLenientJSONField(capacity, "data", &s.Capacity.Data)
+		decodeLenientJSONField(capacity, "snapshots", &s.Capacity.Snapshots)
+		decodeLenientJSONField(capacity, "hard_quota", &s.Capacity.HardQuota)
+		decodeLenientJSONField(capacity, "soft_quota", &s.Capacity.SoftQuota)
+		decodeLenientJSONField(capacity, "reserved", &s.Capacity.Reserved)
+	}
+
+	var storage map[string]json.RawMessage
+	if raw := fields["storage"]; len(raw) != 0 && json.Unmarshal(raw, &storage) == nil {
+		decodeLenientJSONField(storage, "blocksize", &s.Storage.BlockSize)
+		decodeLenientJSONField(storage, "deduplication", &s.Storage.Deduplication)
+		decodeLenientJSONField(storage, "compression", &s.Storage.Compression)
+		decodeLenientJSONField(storage, "compress_ratio", &s.Storage.CompressRatio)
+		decodeLenientJSONField(storage, "provision_type", &s.Storage.ProvisionType)
+		decodeLenientJSONField(storage, "dram_cache", &s.Storage.DramCache)
+		decodeLenientJSONField(storage, "flash_cache", &s.Storage.FlashCache)
+		decodeLenientJSONField(storage, "io_type", &s.Storage.IOType)
+		decodeLenientJSONField(storage, "permissions", &s.Storage.Permissions)
+		decodeLenientJSONField(storage, "flashtier_limit", &s.Storage.FlashTierLimit)
+		decodeLenientJSONField(storage, "clone", &s.Storage.Clone)
+	}
+
+	if rawExports := fields["exports"]; len(rawExports) != 0 {
+		var raw struct {
+			NFS struct {
+				Enabled  json.RawMessage `json:"enabled"`
+				ReadOnly json.RawMessage `json:"read_only"`
+			} `json:"nfs"`
+		}
+		if err := json.Unmarshal(rawExports, &raw); err != nil {
+			return err
+		}
+		if len(raw.NFS.Enabled) != 0 {
+			enabled, err := flexBoolFromValue(decodeJSONValue(raw.NFS.Enabled))
+			if err != nil {
+				return fmt.Errorf("ngxstorage: share %q export enabled: %w", s.ID, err)
 			}
+			s.Exports.NFS.Enabled = enabled
+		}
+		if len(raw.NFS.ReadOnly) != 0 {
+			readOnly, err := flexBoolFromValue(decodeJSONValue(raw.NFS.ReadOnly))
+			if err != nil {
+				return fmt.Errorf("ngxstorage: share %q export read_only: %w", s.ID, err)
+			}
+			s.Exports.NFS.ReadOnly = readOnly
 		}
 	}
-	if exports, ok := m["exports"].(map[string]interface{}); ok {
-		if nfs, ok := exports["nfs"].(map[string]interface{}); ok {
-			if raw, exists := nfs["enabled"]; exists {
-				enabled, err := flexBoolFromValue(raw)
-				if err != nil {
-					return fmt.Errorf("ngxstorage: share %q export enabled: %w", s.ID, err)
-				}
-				s.Exports.NFS.Enabled = enabled
-			}
-			if raw, exists := nfs["read_only"]; exists {
-				readOnly, err := flexBoolFromValue(raw)
-				if err != nil {
-					return fmt.Errorf("ngxstorage: share %q export read_only: %w", s.ID, err)
-				}
-				s.Exports.NFS.ReadOnly = readOnly
-			}
-		}
-	}
-	s.BlockSize, _ = m["blocksize"].(string)
-	s.Dedup, _ = m["deduplication"].(string)
-	s.Compress, _ = m["compression"].(string)
-	s.FlashCache, _ = m["flash_cache"].(string)
-	s.DramCache, _ = m["dram_cache"].(string)
-	s.Permissions, _ = m["permissions"].(string)
-	s.FlashTierLimit, _ = m["flashtier_limit"].(string)
 	return nil
 }
 
-// ShareCapacity is the nested capacity document of a share.
+func decodeLenientJSONField[T any](fields map[string]json.RawMessage, name string, destination *T) {
+	if raw := fields[name]; len(raw) != 0 {
+		var decoded T
+		if json.Unmarshal(raw, &decoded) == nil {
+			*destination = decoded
+		}
+	}
+}
+
+// ShareCapacity is the nested capacity document of a share. The backend
+// serializes quota fields as null when unset, so they decode to nil pointers.
 type ShareCapacity struct {
-	// SoftQuota is the share quota in bytes; the backend serializes it as a
-	// number or a decimal string.
-	SoftQuota FlexBytes `json:"soft_quota"`
+	Used      FlexBytes  `json:"used"`
+	Data      FlexBytes  `json:"data"`
+	Snapshots FlexBytes  `json:"snapshots"`
+	HardQuota *FlexBytes `json:"hard_quota"`
+	SoftQuota *FlexBytes `json:"soft_quota"`
+	Reserved  *FlexBytes `json:"reserved"`
+}
+
+// ShareStorage is the nested storage-attributes document of a share.
+type ShareStorage struct {
+	BlockSize     string   `json:"blocksize"`
+	Deduplication FlexBool `json:"deduplication"`
+	Compression   FlexBool `json:"compression"`
+	CompressRatio *string  `json:"compress_ratio"`
+	ProvisionType string   `json:"provision_type"` // "thin" | "full"
+	DramCache     FlexBool `json:"dram_cache"`
+	FlashCache    FlexBool `json:"flash_cache"`
+	IOType        string   `json:"io_type"` // "transactional" | "sequential"
+	// Permissions is the 9-bit binary rwx string (e.g. "111111111" = 777).
+	Permissions string `json:"permissions"`
+	// FlashTierLimit is the flashtier blocksize limit ("Nk", "512", or "0").
+	FlashTierLimit string  `json:"flashtier_limit"`
+	Clone          *string `json:"clone"`
 }
 
 // ShareExports is the nested export document of a share.
@@ -181,23 +232,33 @@ type FCPortInfo struct {
 
 // ISCSITarget is an iSCSI target on the backend.
 type ISCSITarget struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Owner           string `json:"owner"`
-	TargetIQN       string `json:"target_iqn"`
-	AuthGroupID     string `json:"auth_group_id"`
-	AuthGroupName   string `json:"auth_group_name"`
-	PortalGroupID   string `json:"portal_group_id"`
-	PortalGroupName string `json:"portal_group_name"`
-	Initiators      []struct {
-		ID  string `json:"id"`
-		IQN string `json:"iqn"`
-	} `json:"initiators"`
-	Luns []struct {
-		ID     string `json:"id"`
-		Name   string `json:"name"`
-		Number string `json:"number"`
-	} `json:"luns"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Owner           string                 `json:"owner"`
+	TargetIQN       string                 `json:"target_iqn"`
+	AuthGroupID     string                 `json:"auth_group_id"`
+	AuthGroupName   string                 `json:"auth_group_name"`
+	PortalGroupID   string                 `json:"portal_group_id"`
+	PortalGroupName string                 `json:"portal_group_name"`
+	Initiators      []ISCSITargetInitiator `json:"initiators"`
+	Luns            []ISCSITargetLUN       `json:"luns"`
+}
+
+// ISCSITargetInitiator is a logged-in iSCSI initiator of a target.
+type ISCSITargetInitiator struct {
+	ID    string `json:"id"`
+	IQN   string `json:"iqn"`
+	Alias string `json:"alias"`
+	IP    string `json:"ip"`
+}
+
+// ISCSITargetLUN is a LUN mapped to an iSCSI target.
+type ISCSITargetLUN struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Number   string `json:"number"` // SCSI LUN number; number or string on the wire
+	PoolName string `json:"pool_name"`
+	ScsiID   string `json:"scsi_id"`
 }
 
 // Initiator is an iSCSI initiator (IQN) or FC initiator (WWPN) currently
@@ -228,7 +289,8 @@ type AuthGroup struct {
 	Initiators []Initiator `json:"initiator"`
 }
 
-// PortalGroup is an iSCSI portal group exposing target IPs.
+// PortalGroupListenIP is one listen address (interface and IP) of a portal
+// group detail record.
 type PortalGroupListenIP struct {
 	ID            string `json:"id"`
 	InterfaceName string `json:"interface_name"`
@@ -236,6 +298,7 @@ type PortalGroupListenIP struct {
 	Owner         string `json:"owner"`
 }
 
+// PortalGroup is an iSCSI portal group exposing target IPs.
 type PortalGroup struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -359,24 +422,26 @@ func (p *Pool) UnmarshalJSON(data []byte) error {
 }
 
 // SnapshotSchedule is the snapshot schedule installed on a volume
-// (GET/POST/DELETE /api/v2/snapshot/schedule/{volume_id}).
+// (GET/POST/DELETE /api/v2/snapshot/schedule/{volume_id}). The wire document
+// is the backend's schedules-table row: an empty schedule reads back with
+// empty strings. Creating a schedule sends cron_time plus keep_max.
 type SnapshotSchedule struct {
 	ID         string `json:"id"`
+	Owner      string `json:"owner"`
+	HumanRead  string `json:"h_read"`
+	CronTime   string `json:"c_time"`
+	KeepMax    string `json:"keep_max"`
 	VolumeID   string `json:"volume_id"`
-	VolumeName string `json:"volume_name"`
-	Interval   string `json:"interval"`
-	Retention  string `json:"retention"`
-	Enabled    bool   `json:"enabled"`
-	NextRun    string `json:"next_run"`
+	VolumeType string `json:"volume_type"` // "share" | "lun"
 }
 
-// FCInitiatorTag is an FC initiator tag (zoning alias) that names one or more
-// initiator WWPNs (GET/POST /api/v2/target/fc/initiator/tag).
+// FCInitiatorTag is an FC initiator tag (zoning alias) for one initiator NAA
+// (GET/POST /api/v2/target/fc/initiator/tag).
 type FCInitiatorTag struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	InitiatorIDs []string `json:"initiator_ids"`
-	InitiatorWWN []string `json:"initiator_wwn"`
+	ID           string `json:"id"`
+	InitiatorNAA string `json:"initiator_naa"`
+	Tag          string `json:"tag"`
+	Owner        string `json:"owner"`
 }
 
 // Peer is a cluster member in the cluster status response.
