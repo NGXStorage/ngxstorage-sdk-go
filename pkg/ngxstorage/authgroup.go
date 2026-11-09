@@ -13,8 +13,10 @@ type AuthGroupService struct{ c *Client }
 // AuthGroups returns the auth group service.
 func (c *Client) AuthGroups() *AuthGroupService { return &AuthGroupService{c} }
 
-// Create provisions an auth group. Returns the new group ID as its decimal
-// string (the backend acks with a numeric group_id).
+// Create provisions an auth group and returns its new ID. The live backend
+// acks with a quoted sha1 hex string (only the legacy DefaultAuthGroup keeps
+// the numeric id 1, which Create never returns); older releases emitted the
+// id as a bare JSON number.
 func (s *AuthGroupService) Create(ctx context.Context, name, owner string) (string, error) {
 	body := map[string]interface{}{"name": name, "owner": owner}
 	resp, err := s.c.mutation(ctx, "CreateAuthGroup", nil, body)
@@ -22,12 +24,20 @@ func (s *AuthGroupService) Create(ctx context.Context, name, owner string) (stri
 		return "", fmt.Errorf("ngxstorage: create auth group: %w", err)
 	}
 	var parsed struct {
-		ID json.Number `json:"id"`
+		ID json.RawMessage `json:"id"`
 	}
 	if err := json.Unmarshal(resp, &parsed); err != nil {
 		return "", fmt.Errorf("ngxstorage: decode create auth group: %w", err)
 	}
-	return parsed.ID.String(), nil
+	var idString string
+	if err := json.Unmarshal(parsed.ID, &idString); err == nil && idString != "" {
+		return idString, nil
+	}
+	var idNumber json.Number
+	if err := json.Unmarshal(parsed.ID, &idNumber); err == nil && idNumber.String() != "" {
+		return idNumber.String(), nil
+	}
+	return "", fmt.Errorf("ngxstorage: create auth group returned no id")
 }
 
 // Get fetches an auth group including its CHAP and initiators.

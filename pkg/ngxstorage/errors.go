@@ -92,8 +92,10 @@ func NewTransportError(method, endpoint string, err error) error {
 	return &TransportError{Method: method, Endpoint: endpoint, Err: err}
 }
 
-// Sentinel errors resolved during controller/pool refresh.
+// Sentinel errors for backend lifecycle and readiness.
 var (
+	// ErrSnapshotInUse means a clone still depends on the snapshot.
+	ErrSnapshotInUse = errors.New("ngxstorage: snapshot is in use")
 	// ErrPoolNotFound means every required pool list confirmed the configured
 	// pool is absent.
 	ErrPoolNotFound = errors.New("ngxstorage: pool not found")

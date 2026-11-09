@@ -3,6 +3,7 @@ package ngxstorage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -132,5 +133,32 @@ func TestSnapshotCloneReadsVolumeIDAck(t *testing.T) {
 	}
 	if volID != "new-vol-1" {
 		t.Fatalf("volID = %q", volID)
+	}
+}
+
+func TestSnapshotDeleteRecognizesOnlyConfirmedCloneDependency(t *testing.T) {
+	for _, tc := range []struct {
+		name, message string
+		code, status  int
+		want          bool
+	}{
+		{"clone dependency", "Snapshot could not be deleted. Because there are clone volumes created from this snapshot.", 999, 400, true},
+		{"unrelated generic error", "invalid snapshot parameter", 999, 400, false},
+		{"different status", "Snapshot could not be deleted. Because there are clone volumes created from this snapshot.", 999, 403, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+				json.NewEncoder(w).Encode(map[string]interface{}{"code": tc.code, "error": tc.message})
+			})
+			err := client.Snapshots().Delete(context.Background(), "snap-1")
+			if errors.Is(err, ErrSnapshotInUse) != tc.want {
+				t.Fatalf("dependency classification=%v want=%v: %v", errors.Is(err, ErrSnapshotInUse), tc.want, err)
+			}
+			var apiErr *APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("original API error lost: %v", err)
+			}
+		})
 	}
 }

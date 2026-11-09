@@ -3,8 +3,10 @@ package ngxstorage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 // SnapshotService manages point-in-time copies.
@@ -82,6 +84,11 @@ func (s *SnapshotService) Delete(ctx context.Context, id string) error {
 		return nil
 	}
 	if err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == 400 && apiErr.Code == 999 &&
+			strings.TrimSpace(apiErr.Message) == "Snapshot could not be deleted. Because there are clone volumes created from this snapshot." {
+			return fmt.Errorf("%w: %w", ErrSnapshotInUse, err)
+		}
 		return fmt.Errorf("ngxstorage: delete snapshot: %w", err)
 	}
 	return nil

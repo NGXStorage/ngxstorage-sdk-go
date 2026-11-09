@@ -122,6 +122,32 @@ func TestAuthGroupAddIQNTreatsDuplicateAsSuccess(t *testing.T) {
 	}
 }
 
+func TestAuthGroupCreateDecodesLiveAckShape(t *testing.T) {
+	// The live backend acks new auth groups with a sha1 hex string id
+	// (only the legacy DefaultAuthGroup keeps the numeric id 1), so the
+	// create response must decode a quoted string id.
+	var body map[string]interface{}
+	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v2/auth_group" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		w.Write([]byte(`{"id":"947ee544366d8fc67e6e883527df86c911c4ff58","success":"true"}`))
+	})
+	id, err := client.AuthGroups().Create(context.Background(), "host-a", "ctrl-a")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if id != "947ee544366d8fc67e6e883527df86c911c4ff58" {
+		t.Fatalf("create id = %q", id)
+	}
+	if body["name"] != "host-a" || body["owner"] != "ctrl-a" {
+		t.Fatalf("create body mismatch: %+v", body)
+	}
+}
+
 func TestAuthGroupDeleteIQNIsIdempotent(t *testing.T) {
 	client, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete || r.URL.Path != "/api/v2/auth_group/iqn/12" {
